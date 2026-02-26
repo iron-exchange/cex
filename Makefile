@@ -1,0 +1,11 @@
+ROOT_DIR    = $(shell pwd)
+NAMESPACE   = "default"
+DEPLOY_NAME = "template-single"
+DOCKER_NAME = "template-single"
+
+include ./hack/hack-cli.mk
+include ./hack/hack.mk
+
+.PHONY: dao
+dao: cli.install
+	@gf gen dao

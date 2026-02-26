@@ -1,0 +1,24 @@
+
+# CLI tool, only in development environment.
+# https://goframe.org/docs/cli
+gfcli:
+  gen:
+    dao:
+      - link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/cex"
+        # tables: "t_*"
+        # tablesEx: "t_test_xxx"
+
+        # 修正：缩进与 link 保持一致
+        removePrefix: "t_"
+
+        # 建议添加：强制 JSON 标签使用小写下划线蛇形命名
+        jsonCase: "Snake"
+
+        descriptionTag: true
+        noModelComment: true
+        path: "./internal"
+
+  docker:
+    build: "-a amd64 -s linux -p temp -ew"
+    tagPrefixes:
+      - my.image.pub/my-app
