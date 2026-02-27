@@ -3,6 +3,7 @@ package middleware
 import (
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 )
 
@@ -34,6 +35,16 @@ func HandlerResponse(r *ghttp.Request) {
 			code = gcode.CodeInternalError
 		}
 		msg = err.Error()
+
+		// 安全防护：屏蔽内部框架级别的错误（例如：50 内部错误, 52 数据库操作错误等）
+		c := code.Code()
+		if (c >= 50 && c <= 59) || c == -1 {
+			// 在服务端控制台真实打印包含堆栈的详细原始错
+			g.Log().Errorf(r.Context(), "[全局捕获] 内部严重异常: %+v", err)
+			msg = "系统繁忙，请稍后再试"
+			// 统一对外输出 500 代表失败，防止客户端不认识 52 等内部生僻码
+			code = gcode.New(500, msg, nil)
+		}
 	} else {
 		if r.Response.Status > 0 && r.Response.Status != 200 {
 			switch r.Response.Status {

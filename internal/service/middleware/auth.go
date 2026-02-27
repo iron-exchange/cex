@@ -27,12 +27,22 @@ func init() {
 		TokenHeadName: "Bearer",
 		TimeFunc:      time.Now,
 
+		// 这一步在直接调用 TokenGenerator 时是必不可少的，否则 TokenGenerator 内部走不通或者无法给 PayloadFunc 传参
+		Authenticator: func(ctx context.Context) (interface{}, error) {
+			// 由于我们是在 user 控制器里手动验证后调用的 TokenGenerator(data)
+			// TokenGenerator 内部为了补全流程也会调用一次 Authenticator。
+			// 解决办法是在业务侧不要直接调 TokenGenerator 而是自己组装，或者在这里给透传的参数放行。
+			// 为了防止中间件自带的 login 拦截，这里返回我们在 TokenGenerator 传进来的 map
+			r := g.RequestFromCtx(ctx)
+			return r.GetCtxVar("jwt_payload").Val(), nil
+		},
+
 		// 登录时的 Payload 设置 (这里假定用户登录后返回了用户信息 user)
 		PayloadFunc: func(data interface{}) jwt.MapClaims {
 			if v, ok := data.(map[string]interface{}); ok {
 				return jwt.MapClaims{
-					"userId":   v["userId"],
-					"username": v["username"],
+					"userId":  v["userId"],
+					"account": v["account"],
 				}
 			}
 			return jwt.MapClaims{}
