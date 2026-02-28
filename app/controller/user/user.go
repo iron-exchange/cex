@@ -6,7 +6,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/util/gconv"
 
-	v1 "GoCEX/api/app/v1"
+	v1 "GoCEX/app/api"
 	"GoCEX/internal/logic/user"
 	"GoCEX/internal/service/middleware"
 )
@@ -85,6 +85,18 @@ func (c *Controller) UpdateUserAddress(ctx context.Context, req *v1.UpdateUserAd
 	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
 	err = user.New().UpdateUserAddress(ctx, userId, req)
 	return &v1.UpdateUserAddressRes{}, err
+}
+
+// GetUserInfo 获取当前登录用户信息
+func (c *Controller) GetUserInfo(ctx context.Context, req *v1.GetUserInfoReq) (res *v1.GetUserInfoRes, err error) {
+	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
+	return user.New().GetUserInfo(ctx, userId)
+}
+
+// GetUserAddress 获取已绑定的钱包地址列表
+func (c *Controller) GetUserAddress(ctx context.Context, req *v1.GetUserAddressReq) (res *v1.GetUserAddressRes, err error) {
+	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
+	return user.New().GetUserAddress(ctx, userId)
 }
 
 // UploadKYC KYC 实名认证

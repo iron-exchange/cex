@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	adminV1 "GoCEX/api/admin/v1"
-	v1 "GoCEX/api/app/v1"
+	v1 "GoCEX/app/api"
 	"GoCEX/internal/dao"
 	"GoCEX/internal/logic/asset"
 	"GoCEX/internal/model/entity"

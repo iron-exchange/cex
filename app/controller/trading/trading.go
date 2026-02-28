@@ -5,7 +5,7 @@ import (
 
 	"github.com/gogf/gf/v2/util/gconv"
 
-	v1 "GoCEX/api/app/v1"
+	v1 "GoCEX/app/api"
 	"GoCEX/internal/logic/trading"
 	"GoCEX/internal/service/middleware"
 )
@@ -31,7 +31,7 @@ func (c *Controller) SecondContractSubmit(ctx context.Context, req *v1.SecondCon
 	return &v1.SecondContractSubmitRes{}, err
 }
 
-// ContractOrderSubmit 永续合约下注开仓
+// ContractOrderSubmit 提交永续合约订单
 func (c *Controller) ContractOrderSubmit(ctx context.Context, req *v1.ContractOrderSubmitReq) (res *v1.ContractOrderSubmitRes, err error) {
 	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
 	err = trading.New().ContractOrderSubmit(ctx, userId, req)

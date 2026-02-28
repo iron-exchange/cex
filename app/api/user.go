@@ -89,6 +89,20 @@ type UpdateUserAddressReq struct {
 }
 type UpdateUserAddressRes struct{}
 
+// GetUserAddressReq 获取用户已绑定的钱包地址列表
+type GetUserAddressReq struct {
+	g.Meta `path:"/user/getAddress" tags:"User" method:"get" summary:"获取绑定的钱包地址"`
+}
+
+type UserAddressInfo struct {
+	Address string `json:"address"`
+	Type    string `json:"type" dc:"ETH/TRON"`
+}
+
+type GetUserAddressRes struct {
+	List []UserAddressInfo `json:"list"`
+}
+
 // UploadKYCReq KYC 实名认证
 type UploadKYCReq struct {
 	g.Meta    `path:"/user/uploadKYC" tags:"User" method:"post" summary:"上传KYC实名认证"`
@@ -114,4 +128,24 @@ type SendCodeReq struct {
 type SendCodeRes struct {
 	// 出于安全考虑，验证码绝不能在接口返回。此处仅作占位。
 	// 实际验证码已通过后台日志/短信网关发送。
+}
+
+// GetUserInfoReq 获取登录用户信息
+type GetUserInfoReq struct {
+	g.Meta `path:"/user/info" tags:"User" method:"get" summary:"获取登录用户信息"`
+}
+
+type GetUserInfoRes struct {
+	UserId              int64  `json:"userId" dc:"用户ID"`
+	LoginName           string `json:"loginName" dc:"用户名"`
+	Phone               string `json:"phone" dc:"手机号"`
+	Email               string `json:"email" dc:"邮箱"`
+	Address             string `json:"address" dc:"钱包地址"`
+	WalletType          string `json:"walletType" dc:"地址类型 ETH TRC"`
+	Level               int    `json:"level" dc:"VIP等级"`
+	Status              int    `json:"status" dc:"状态: 0正常 1冻结"`
+	IsFreeze            string `json:"isFreeze" dc:"冻结状态: 1正常 2冻结"`
+	RealName            string `json:"realName" dc:"真实姓名"`
+	AuditStatusPrimary  int    `json:"auditStatusPrimary" dc:"初级验证状态: 0未认证 1审核中 2已通过 3已拒绝"`
+	AuditStatusAdvanced int    `json:"auditStatusAdvanced" dc:"高级验证状态: 0未认证 1审核中 2已通过 3已拒绝"`
 }

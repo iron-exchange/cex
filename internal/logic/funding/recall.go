@@ -10,7 +10,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 
 	adminV1 "GoCEX/api/admin/v1"
-	v1 "GoCEX/api/app/v1"
+	v1 "GoCEX/app/api"
 	"GoCEX/internal/codes"
 	"GoCEX/internal/dao"
 	"GoCEX/internal/logic/asset"

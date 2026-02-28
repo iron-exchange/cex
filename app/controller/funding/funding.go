@@ -5,7 +5,7 @@ import (
 
 	"github.com/gogf/gf/v2/util/gconv"
 
-	v1 "GoCEX/api/app/v1"
+	v1 "GoCEX/app/api"
 	"GoCEX/internal/logic/funding"
 	"GoCEX/internal/service/middleware"
 )

@@ -3,11 +3,13 @@ package app
 import (
 	"context"
 
-	"GoCEX/internal/controller/app/asset"
-	"GoCEX/internal/controller/app/common"
-	"GoCEX/internal/controller/app/funding"
-	"GoCEX/internal/controller/app/trading"
-	"GoCEX/internal/controller/app/user"
+	"GoCEX/app/controller/asset"
+	"GoCEX/app/controller/cms"
+	"GoCEX/app/controller/common"
+	"GoCEX/app/controller/funding"
+	"GoCEX/app/controller/oss"
+	"GoCEX/app/controller/trading"
+	"GoCEX/app/controller/user"
 	"GoCEX/internal/service/middleware"
 
 	"github.com/gogf/gf/v2/frame/g"
@@ -46,8 +48,15 @@ var (
 					)
 				})
 
-				// 放行: 系统大厅开放读取配置与 WebSocket
-				group.Bind(common.New())
+				// 放行: 系统大厅开放读取配置、门户公告内容与 WebSocket
+				cmsCtrl := cms.New()
+				ossCtrl := oss.New()
+				group.Bind(
+					common.New(),
+					cmsCtrl.GetAllNoticeList,
+					cmsCtrl.GetHelpCenterList,
+					ossCtrl.Upload,
+				)
 
 				// 需要鉴权的接口 (包含充提、交易、与用户设置)
 				group.Group("/", func(group *ghttp.RouterGroup) {
@@ -60,6 +69,8 @@ var (
 							userCtrl.BindPhone,
 							userCtrl.BindEmail,
 							userCtrl.UpdateUserAddress,
+							userCtrl.GetUserAddress,
+							userCtrl.GetUserInfo,
 							userCtrl.UploadKYC,
 						)
 					})
@@ -67,6 +78,7 @@ var (
 					group.Bind(funding.New())
 					group.Bind(trading.New())
 					group.Bind(asset.New())
+					group.Bind(cmsCtrl.GetUserMail)
 				})
 			})
 

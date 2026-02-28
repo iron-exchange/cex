@@ -3,7 +3,7 @@ package funding
 import (
 	"context"
 
-	v1 "GoCEX/api/app/v1"
+	v1 "GoCEX/app/api"
 	"GoCEX/internal/logic/funding"
 )
 

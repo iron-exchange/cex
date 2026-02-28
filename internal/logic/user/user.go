@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	v1 "GoCEX/api/app/v1"
+	v1 "GoCEX/app/api"
 	"GoCEX/internal/codes"
 	"GoCEX/internal/dao"
 	"GoCEX/internal/model/entity"
@@ -338,6 +338,31 @@ func (s *sUser) UpdateUserAddress(ctx context.Context, currentUserId uint64, req
 	return err
 }
 
+// GetUserAddress 获取用户绑定的所有钱包地址
+func (s *sUser) GetUserAddress(ctx context.Context, currentUserId uint64) (*v1.GetUserAddressRes, error) {
+	var addrs []entity.AppUserAddress
+	err := dao.AppUserAddress.Ctx(ctx).
+		Where(dao.AppUserAddress.Columns().UserId, currentUserId).
+		Scan(&addrs)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := &v1.GetUserAddressRes{
+		List: make([]v1.UserAddressInfo, 0, len(addrs)),
+	}
+
+	for _, addr := range addrs {
+		res.List = append(res.List, v1.UserAddressInfo{
+			Address: addr.Address,
+			Type:    addr.Symbol,
+		})
+	}
+
+	return res, nil
+}
+
 // UploadKYC 实名认证上传
 func (s *sUser) UploadKYC(ctx context.Context, userId uint64, req *v1.UploadKYCReq) error {
 	// 组装 detail 表数据
@@ -399,4 +424,32 @@ func (s *sUser) SendCode(ctx context.Context, in *v1.SendCodeReq) (*v1.SendCodeR
 
 	// 绝对不能把 Code 放在 Res 里返回给前端，防止被抓包越权！
 	return &v1.SendCodeRes{}, nil
+}
+
+// GetUserInfo 获取当前登录用户的基础与实名等全量信息
+func (s *sUser) GetUserInfo(ctx context.Context, userId uint64) (*v1.GetUserInfoRes, error) {
+	var user entity.AppUser
+	err := dao.AppUser.Ctx(ctx).Where(dao.AppUser.Columns().UserId, userId).Scan(&user)
+	if err != nil {
+		return nil, gerror.NewCode(codes.ClientError, "用户不存在或已被删除")
+	}
+
+	var detail entity.AppUserDetail
+	// 可能有很多老用户尚未记录 detail 表，所以不报错跳过，用默认空值即可
+	_ = dao.AppUserDetail.Ctx(ctx).Where(dao.AppUserDetail.Columns().UserId, userId).Scan(&detail)
+
+	return &v1.GetUserInfoRes{
+		UserId:              user.UserId,
+		LoginName:           user.LoginName,
+		Phone:               user.Phone,
+		Email:               user.Email,
+		Address:             user.Address,
+		WalletType:          user.WalletType,
+		Level:               user.Level,
+		Status:              user.Status,
+		IsFreeze:            user.IsFreeze,
+		RealName:            detail.RealName,
+		AuditStatusPrimary:  detail.AuditStatusPrimary,
+		AuditStatusAdvanced: detail.AuditStatusAdvanced,
+	}, nil
 }

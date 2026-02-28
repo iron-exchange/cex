@@ -3,10 +3,11 @@ package asset
 import (
 	"context"
 
-	v1 "GoCEX/api/app/v1"
+	v1 "GoCEX/app/api"
 	"GoCEX/internal/logic/asset"
+	"GoCEX/internal/service/middleware"
 
-	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/util/gconv"
 )
 
 type ControllerV1 struct{}
@@ -16,11 +17,11 @@ func New() *ControllerV1 {
 }
 
 func (c *ControllerV1) AssetList(ctx context.Context, req *v1.AssetListReq) (res *v1.AssetListRes, err error) {
-	userId := g.RequestFromCtx(ctx).GetCtxVar("userId").Uint64()
+	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
 	return asset.New().GetAssetList(ctx, userId)
 }
 
 func (c *ControllerV1) WalletRecords(ctx context.Context, req *v1.WalletRecordReq) (res *v1.WalletRecordRes, err error) {
-	userId := g.RequestFromCtx(ctx).GetCtxVar("userId").Uint64()
+	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
 	return asset.New().GetWalletRecords(ctx, req, userId)
 }
