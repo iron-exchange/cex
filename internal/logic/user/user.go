@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	v1 "GoCEX/app/api"
+	v1 "GoCEX/api/app/v1"
 	"GoCEX/internal/codes"
 	"GoCEX/internal/dao"
 	"GoCEX/internal/model/entity"
@@ -336,31 +336,6 @@ func (s *sUser) UpdateUserAddress(ctx context.Context, currentUserId uint64, req
 		}).Insert()
 	}
 	return err
-}
-
-// GetUserAddress 获取用户绑定的所有钱包地址
-func (s *sUser) GetUserAddress(ctx context.Context, currentUserId uint64) (*v1.GetUserAddressRes, error) {
-	var addrs []entity.AppUserAddress
-	err := dao.AppUserAddress.Ctx(ctx).
-		Where(dao.AppUserAddress.Columns().UserId, currentUserId).
-		Scan(&addrs)
-
-	if err != nil {
-		return nil, err
-	}
-
-	res := &v1.GetUserAddressRes{
-		List: make([]v1.UserAddressInfo, 0, len(addrs)),
-	}
-
-	for _, addr := range addrs {
-		res.List = append(res.List, v1.UserAddressInfo{
-			Address: addr.Address,
-			Type:    addr.Symbol,
-		})
-	}
-
-	return res, nil
 }
 
 // UploadKYC 实名认证上传

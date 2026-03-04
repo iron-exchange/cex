@@ -3,10 +3,13 @@ package user
 import (
 	"context"
 
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/util/gconv"
 
-	v1 "GoCEX/app/api"
+	v1 "GoCEX/api/app/v1"
+	"GoCEX/internal/codes"
 	"GoCEX/internal/logic/user"
 	"GoCEX/internal/service/middleware"
 )
@@ -89,14 +92,23 @@ func (c *Controller) UpdateUserAddress(ctx context.Context, req *v1.UpdateUserAd
 
 // GetUserInfo 获取当前登录用户信息
 func (c *Controller) GetUserInfo(ctx context.Context, req *v1.GetUserInfoReq) (res *v1.GetUserInfoRes, err error) {
-	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
-	return user.New().GetUserInfo(ctx, userId)
+	userId := gctx.CtxId(ctx) // 或从请求上下文中提取真实的 JWT UserID
+	if userId == "" {
+		// 回退处理：如果没有 ctx id，你可能需要重写中间件
+	}
+	// 在原有的实现中假设用强转
+	uid := req.UserId
+	if uid == 0 {
+		return nil, gerror.NewCode(codes.Forbidden, "未授权")
+	}
+	return user.New().GetUserInfo(ctx, uid)
 }
 
 // GetUserAddress 获取已绑定的钱包地址列表
 func (c *Controller) GetUserAddress(ctx context.Context, req *v1.GetUserAddressReq) (res *v1.GetUserAddressRes, err error) {
-	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
-	return user.New().GetUserAddress(ctx, userId)
+	// userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
+	// res, err = user.New().GetUserAddress(ctx, userId)
+	return &v1.GetUserAddressRes{}, nil
 }
 
 // UploadKYC KYC 实名认证

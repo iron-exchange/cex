@@ -6,11 +6,15 @@ import (
 	"GoCEX/app/controller/asset"
 	"GoCEX/app/controller/cms"
 	"GoCEX/app/controller/common"
+	"GoCEX/app/controller/defi"
 	"GoCEX/app/controller/funding"
+	"GoCEX/app/controller/mining"
 	"GoCEX/app/controller/oss"
 	"GoCEX/app/controller/trading"
 	"GoCEX/app/controller/user"
+	"GoCEX/internal/service/market"
 	"GoCEX/internal/service/middleware"
+	taskCtrl "GoCEX/task/controller/task"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
@@ -27,6 +31,9 @@ var (
 		Brief: "start app http server",
 		Func: func(ctx context.Context, parser *gcmd.Parser) (err error) {
 			s := g.Server()
+
+			// 启动币安 WebSocket 后台行情拉取服务 (取代老的 Http Polling Cron)
+			market.StartBinanceWSDaemon(ctx)
 
 			// 统一开启跨域
 			s.Use(ghttp.MiddlewareCORS)
@@ -56,6 +63,7 @@ var (
 					cmsCtrl.GetAllNoticeList,
 					cmsCtrl.GetHelpCenterList,
 					ossCtrl.Upload,
+					defi.New().GetDefiRate,
 				)
 
 				// 需要鉴权的接口 (包含充提、交易、与用户设置)
@@ -78,8 +86,20 @@ var (
 					group.Bind(funding.New())
 					group.Bind(trading.New())
 					group.Bind(asset.New())
+					group.Bind(defi.New())
+					group.Bind(mining.New())
 					group.Bind(cmsCtrl.GetUserMail)
 				})
+			})
+
+			// 挂载独立的后台定时器 (Quartz Tasks) 触发网关
+			// 这些接口本身并不属于面向 C 端的 /api 业务，所以注册为隔离的 /task 域名后缀
+			// 未来可以在此处新增一层特殊的 Token Validator 或只允许 localhost 回环地址调用的风控层。
+			s.Group("/task", func(taskGroup *ghttp.RouterGroup) {
+				taskGroup.Middleware(ghttp.MiddlewareHandlerResponse) // 返回标准 JSON 化
+				taskGroup.Bind(
+					taskCtrl.New(),
+				)
 			})
 
 			s.Run()

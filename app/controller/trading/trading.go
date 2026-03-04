@@ -5,7 +5,7 @@ import (
 
 	"github.com/gogf/gf/v2/util/gconv"
 
-	v1 "GoCEX/app/api"
+	v1 "GoCEX/api/app/v1"
 	"GoCEX/internal/logic/trading"
 	"GoCEX/internal/service/middleware"
 )
@@ -48,4 +48,25 @@ func (c *Controller) CurrencyOrderList(ctx context.Context, req *v1.CurrencyOrde
 func (c *Controller) CurrencyOrderCancel(ctx context.Context, req *v1.CurrencyOrderCancelReq) (res *v1.CurrencyOrderCancelRes, err error) {
 	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
 	return trading.New().CancelCurrencyOrder(ctx, req, userId)
+}
+
+// AdjustMargin 调整仓位保证金
+func (c *Controller) AdjustMargin(ctx context.Context, req *v1.AdjustPositionMarginReq) (res *v1.AdjustPositionMarginRes, err error) {
+	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
+	newAmount, err := trading.New().AdjustMargin(ctx, userId, req)
+	return &v1.AdjustPositionMarginRes{NewAmount: newAmount}, err
+}
+
+// ContractLossSett 设置止盈止损
+func (c *Controller) ContractLossSett(ctx context.Context, req *v1.ContractLossSettReq) (res *v1.ContractLossSettRes, err error) {
+	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
+	err = trading.New().ContractLossSett(ctx, userId, req)
+	return &v1.ContractLossSettRes{Success: err == nil}, err
+}
+
+// ClosePosition 市价平仓
+func (c *Controller) ClosePosition(ctx context.Context, req *v1.ClosePositionReq) (res *v1.ClosePositionRes, err error) {
+	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
+	profit, err := trading.New().ClosePosition(ctx, userId, req)
+	return &v1.ClosePositionRes{Profit: profit}, err
 }

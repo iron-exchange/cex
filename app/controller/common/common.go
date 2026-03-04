@@ -5,8 +5,10 @@ import (
 
 	v1 "GoCEX/app/api"
 	"GoCEX/internal/logic/common"
+	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/lib/pq"
 )
 
 type Controller struct{}
@@ -52,38 +54,46 @@ func (c *Controller) MarketTickerWs(ctx context.Context, req *v1.MarketTickerWsR
 		return nil, err
 	}
 
-	// 启动一个独立协程，监听 Redis 的行情广播频道
+	// 启动一个独立协程，监听 Postgres 的行情广播频道 (替代原本的 Redis)
 	go func() {
 		defer ws.Close()
 
-		// 假设原系统向 Redis 发布行情的频道是 MARKET:TICKER
-		conn, err := g.Redis().Conn(ctx)
-		if err != nil {
-			g.Log().Error(ctx, "无法连接 Redis 行情频道:", err)
-			return
-		}
-		defer conn.Close(ctx)
+		// 获取 PG 连接配置用于 Listener
+		dbConfig := g.DB().GetConfig()
+		conninfo := "postgres://" + dbConfig.User + ":" + dbConfig.Pass + "@" + dbConfig.Host + ":" + dbConfig.Port + "/" + dbConfig.Name + "?sslmode=disable"
 
-		// 订阅行情频道
-		_, err = conn.Subscribe(ctx, "MARKET:TICKER")
-		if err != nil {
-			g.Log().Error(ctx, "订阅行情频道 MARKET:TICKER 失败:", err)
-			return
-		}
-
-		// 死循环阻塞读取广播消息
-		for {
-			msg, err := conn.ReceiveMessage(ctx)
+		reportProblem := func(ev pq.ListenerEventType, err error) {
 			if err != nil {
-				// Redis 故障或断开，跳出循环
-				g.Log().Error(ctx, "Redis ReceiveMessage 错误:", err)
-				break
+				g.Log().Error(ctx, "PG Listener 发生异常:", err)
 			}
+		}
 
-			// 将拿到的真实行情 JSON 字符串原封不动推送给连进来的前端 WebSocket
-			if err := ws.WriteMessage(1, []byte(msg.Payload)); err != nil {
-				// 前端断开连接，发送失败直接退出推送协程
-				break
+		listener := pq.NewListener(conninfo, 10*time.Second, time.Minute, reportProblem)
+		err = listener.Listen("market_ticker")
+		if err != nil {
+			g.Log().Error(ctx, "PG Listener 订阅失败:", err)
+			return
+		}
+		defer listener.Close()
+
+		g.Log().Info(ctx, "✅ 成功开启 PG LISTEN market_ticker 侦听")
+
+		// 死循环阻塞读取 PG 触发的 NOTIFY 广播消息
+		for {
+			select {
+			case n := <-listener.Notify:
+				if n == nil {
+					continue
+				}
+				// 将拿到的真实行情 JSON 字符串原封不动推送给连进来的前端 WebSocket
+				g.Log().Info(ctx, "📥 WS收到PG广播:", n.Extra)
+				if err := ws.WriteMessage(1, []byte(n.Extra)); err != nil {
+					g.Log().Error(ctx, "📤 WS下发前端失败, 客户端已断开:", err)
+					return // 前端断开连接，退出推送协程
+				}
+			case <-time.After(90 * time.Second):
+				// 闲置超时或者心跳检活，如果需要ping PG
+				go listener.Ping()
 			}
 		}
 	}()
