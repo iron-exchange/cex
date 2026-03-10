@@ -65,6 +65,7 @@ func (s *sAsset) SubAmount(ctx context.Context, in *v1.SubAmountReq, callbacks .
 	// 2. 数据库事务开启 (保证资产更新与流水插入同时成功或失败)
 	err := dao.AppAsset.Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
 		var asset entity.AppAsset
+		g.Log().Debugf(ctx, "SubAmount Intercept: UserId=%d, Symbol=%s, Amount=%f", in.UserId, in.Symbol, in.Amount)
 
 		// 3. PostgreSQL 行级悲观锁护航 (SELECT ... FOR UPDATE)
 		err := dao.AppAsset.Ctx(ctx).TX(tx).

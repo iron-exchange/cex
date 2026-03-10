@@ -211,3 +211,58 @@ func (s *sMining) Redemption(ctx context.Context, userId uint64, orderNo string)
 
 	return
 }
+
+// GetProductList 单独查询可用矿机列表 (对应 /api/mingProduct/list)
+func (s *sMining) GetProductList(ctx context.Context, req *v1.MingProductListReq) (res *v1.MingProductListRes, err error) {
+	res = &v1.MingProductListRes{}
+	var products []entity.MingProduct
+	err = dao.MingProduct.Ctx(ctx).Where("status", 1).Order("sort asc").Scan(&products)
+	for _, p := range products {
+		res.Rows = append(res.Rows, v1.MiningProductInfo{
+			Id:       gconv.Int64(p.Id),
+			Title:    p.Title,
+			MinPrice: p.LimitMin,
+			MaxPrice: p.LimitMax,
+			MinOdds:  p.MinOdds,
+			MaxOdds:  p.MaxOdds,
+		})
+	}
+	return
+}
+
+// GetOrderList 单独查询我的订单 (对应 /api/mingOrder/list)
+func (s *sMining) GetOrderList(ctx context.Context, userId uint64, req *v1.MingOrderListReq) (res *v1.MingOrderListRes, err error) {
+	res = &v1.MingOrderListRes{}
+	var orders []entity.MingOrder
+	err = dao.MingOrder.Ctx(ctx).Where("user_id", userId).Order("create_time desc").Scan(&orders)
+	for _, o := range orders {
+		res.Rows = append(res.Rows, v1.MiningOrderInfo{
+			OrderNo:    o.OrderNo,
+			Amount:     o.Amount,
+			Days:       o.Days,
+			Status:     o.Status,
+			CreateTime: o.CreateTime.Format("2006-01-02 15:04:05"),
+		})
+	}
+	return
+}
+
+// GetOrderDetail 查询单笔订单详情 (对应 /api/mingOrder/{id})
+func (s *sMining) GetOrderDetail(ctx context.Context, userId uint64, req *v1.MingOrderDetailReq) (res *v1.MingOrderDetailRes, err error) {
+	var o entity.MingOrder
+	err = dao.MingOrder.Ctx(ctx).Where("id", req.Id).Where("user_id", userId).Scan(&o)
+	if err != nil || o.Id == 0 {
+		return nil, gerror.NewCode(codes.Failed, "订单不存在或无权访问")
+	}
+
+	res = &v1.MingOrderDetailRes{
+		Data: v1.MiningOrderInfo{
+			OrderNo:    o.OrderNo,
+			Amount:     o.Amount,
+			Days:       o.Days,
+			Status:     o.Status,
+			CreateTime: o.CreateTime.Format("2006-01-02 15:04:05"),
+		},
+	}
+	return res, nil
+}

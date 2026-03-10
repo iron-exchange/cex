@@ -3,6 +3,7 @@ package task
 import (
 	"GoCEX/internal/dao"
 	"GoCEX/internal/model/entity"
+	"GoCEX/internal/service/websocket"
 	"context"
 	"strings"
 
@@ -186,6 +187,8 @@ func (s *sTask) SettleSecondContract(ctx context.Context) error {
 				g.Log().Errorf(ctx, "秒合约订单 %s 结算库事务失败: %v", o.OrderNo, err)
 			} else {
 				g.Log().Infof(ctx, "✅ 结算完成: 订单 %s, 结果 %s", o.OrderNo, openResult)
+				// 结算成功后，立刻通过 PostgreSQL PubSub 推送开奖结果给对应用户的 WebSocket 客户端
+				websocket.PublishCoinOver(ctx, o.UserId, o.OrderNo, rewardAmount.InexactFloat64(), string(openResult))
 			}
 		}(order)
 	}

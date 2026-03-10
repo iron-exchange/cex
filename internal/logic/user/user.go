@@ -8,6 +8,7 @@ import (
 	"GoCEX/internal/codes"
 	"GoCEX/internal/dao"
 	"GoCEX/internal/model/entity"
+	"GoCEX/internal/service/websocket"
 
 	"github.com/gogf/gf/v2/crypto/gmd5"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -369,6 +370,11 @@ func (s *sUser) UploadKYC(ctx context.Context, userId uint64, req *v1.UploadKYCR
 		data[dao.AppUserDetail.Columns().Id] = userId // 修复无自增序列报错
 		data[dao.AppUserDetail.Columns().UserId] = userId
 		_, err = dao.AppUserDetail.Ctx(ctx).Data(data).Insert()
+	}
+
+	if err == nil {
+		// KYC提交成功后，推送后台 WebSocket 审核提醒 (类型 3)
+		websocket.PublishToAdmin(ctx, 3)
 	}
 
 	return err

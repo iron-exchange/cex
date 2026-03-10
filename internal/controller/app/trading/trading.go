@@ -38,13 +38,6 @@ func (c *Controller) ContractOrderSubmit(ctx context.Context, req *v1.ContractOr
 	return &v1.ContractOrderSubmitRes{}, err
 }
 
-// CancelOrder 撤销现货订单
-func (c *Controller) CancelOrder(ctx context.Context, req *v1.CancelOrderReq) (res *v1.CancelOrderRes, err error) {
-	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
-	err = trading.New().CancelOrder(ctx, userId, req)
-	return &v1.CancelOrderRes{}, err
-}
-
 // CurrencyOrderList 现货持仓历史记录查询
 func (c *Controller) CurrencyOrderList(ctx context.Context, req *v1.CurrencyOrderListReq) (res *v1.CurrencyOrderListRes, err error) {
 	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
@@ -54,5 +47,6 @@ func (c *Controller) CurrencyOrderList(ctx context.Context, req *v1.CurrencyOrde
 // CurrencyOrderCancel 手工撤销指定挂单 (CAS)
 func (c *Controller) CurrencyOrderCancel(ctx context.Context, req *v1.CurrencyOrderCancelReq) (res *v1.CurrencyOrderCancelRes, err error) {
 	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
-	return trading.New().CancelCurrencyOrder(ctx, req, userId)
+	err = trading.New().CancelOrder(ctx, userId, req)
+	return &v1.CurrencyOrderCancelRes{Success: true}, err
 }

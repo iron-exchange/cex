@@ -17,3 +17,25 @@ type SubAmountRes struct {
 	RecordId      int64   `json:"recordId" dc:"生成的账变流水记录ID"`
 	CurrentAmount float64 `json:"currentAmount" dc:"操作后最新可用余额"`
 }
+
+type AssetInfo struct {
+	UserId       int64   `json:"userId"`
+	Symbol       string  `json:"symbol"`
+	Available    float64 `json:"available"`
+	FreezeAmount float64 `json:"freezeAmount"`
+	UpdateTime   string  `json:"updateTime"`
+}
+
+// GetAssetListReq 获取玩家资产列表
+type GetAssetListReq struct {
+	g.Meta `path:"/asset/list" tags:"AdminAsset" method:"get" summary:"获取玩家资产列表"`
+	Page   int    `json:"page" d:"1"`
+	Size   int    `json:"size" d:"20"`
+	UserId int64  `json:"userId" dc:"按用户ID搜索"`
+	Symbol string `json:"symbol" dc:"按币种搜索"`
+}
+
+type GetAssetListRes struct {
+	List  []AssetInfo `json:"list"`
+	Total int         `json:"total"`
+}

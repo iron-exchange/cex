@@ -22,4 +22,6 @@ type DefiRate struct {
 	UpdateTime  *gtime.Time // 更新时间
 	Remark      any         // 备注
 	SearchValue any         //
+	Symbol      any         //
+	RewardCoin  any         //
 }

@@ -10,10 +10,13 @@ import (
 	"GoCEX/app/controller/funding"
 	"GoCEX/app/controller/mining"
 	"GoCEX/app/controller/oss"
+	"GoCEX/app/controller/owncoin"
+	"GoCEX/app/controller/second_contract"
 	"GoCEX/app/controller/trading"
 	"GoCEX/app/controller/user"
 	"GoCEX/internal/service/market"
 	"GoCEX/internal/service/middleware"
+	"GoCEX/internal/service/websocket"
 	taskCtrl "GoCEX/task/controller/task"
 
 	"github.com/gogf/gf/v2/frame/g"
@@ -58,13 +61,29 @@ var (
 				// 放行: 系统大厅开放读取配置、门户公告内容与 WebSocket
 				cmsCtrl := cms.New()
 				ossCtrl := oss.New()
+				defiCtrl := defi.New()
+				owncoinCtrl := owncoin.New()
+				miningCtrl := mining.New()
+				secondCtrl := second_contract.New()
 				group.Bind(
 					common.New(),
 					cmsCtrl.GetAllNoticeList,
 					cmsCtrl.GetHelpCenterList,
 					ossCtrl.Upload,
-					defi.New().GetDefiRate,
+					defiCtrl.GetDefiRate,
+					owncoinCtrl.GetOwnCoinList, // 自发币大厅展示无需鉴权
+					miningCtrl.MingProductList, // 矿机大厅展示无需鉴权
+					secondCtrl.GetCoinList,     // 秒合约币种配置展示无需鉴权
 				)
+
+				// 针对 App Frontend 提供的全局 WebSocket 接入端点
+				group.ALL("/ws/{uuid}", websocket.AppHub.AppConnect)
+
+				// 针对具体币种行情订阅的 WebSocket 独立端点
+				group.ALL("/ws/coin/{userId}", websocket.CoinHub.CoinConnect)
+
+				// 秒合约订单开奖结算的单独定向推送端点
+				group.ALL("/webSocket/coinOver/{userId}", websocket.CoinOverHub.CoinOverConnect)
 
 				// 需要鉴权的接口 (包含充提、交易、与用户设置)
 				group.Group("/", func(group *ghttp.RouterGroup) {
@@ -86,9 +105,31 @@ var (
 					group.Bind(funding.New())
 					group.Bind(trading.New())
 					group.Bind(asset.New())
-					group.Bind(defi.New())
-					group.Bind(mining.New())
+					group.Bind(
+						defiCtrl.SendApproveHash,
+						defiCtrl.ShowIncome,
+						defiCtrl.ShowOrder,
+					)
+					group.Bind(
+						miningCtrl.MiningShow,
+						miningCtrl.MiningSubmit,
+						miningCtrl.MiningRedemption,
+						miningCtrl.PersonalIncome,
+						miningCtrl.FinancialSubmit,
+						miningCtrl.MingOrderList,
+						miningCtrl.MingOrderDetail,
+						miningCtrl.MingOrderRedemptionNew,
+					)
 					group.Bind(cmsCtrl.GetUserMail)
+					group.Bind(
+						owncoinCtrl.GetOwnCoinDetail,
+						owncoinCtrl.SubscribeOwnCoin,
+					)
+					group.Bind(
+						secondCtrl.GetCoinDetail,
+						secondCtrl.CreateOrder,
+						secondCtrl.SelectOrderList,
+					)
 				})
 			})
 

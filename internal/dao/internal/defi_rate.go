@@ -31,6 +31,8 @@ type DefiRateColumns struct {
 	UpdateTime  string // 更新时间
 	Remark      string // 备注
 	SearchValue string //
+	Symbol      string //
+	RewardCoin  string //
 }
 
 // defiRateColumns holds the columns for the table t_defi_rate.
@@ -45,6 +47,8 @@ var defiRateColumns = DefiRateColumns{
 	UpdateTime:  "update_time",
 	Remark:      "remark",
 	SearchValue: "search_value",
+	Symbol:      "symbol",
+	RewardCoin:  "reward_coin",
 }
 
 // NewDefiRateDao creates and returns a new DAO object for table data access.

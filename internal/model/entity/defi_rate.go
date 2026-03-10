@@ -20,4 +20,6 @@ type DefiRate struct {
 	UpdateTime  *gtime.Time `json:"update_time"  orm:"update_time"  description:"更新时间"`
 	Remark      string      `json:"remark"       orm:"remark"       description:"备注"`
 	SearchValue string      `json:"search_value" orm:"search_value" description:""`
+	Symbol      string      `json:"symbol"       orm:"symbol"       description:""`
+	RewardCoin  string      `json:"reward_coin"  orm:"reward_coin"  description:""`
 }

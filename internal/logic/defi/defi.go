@@ -9,6 +9,7 @@ import (
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/util/gconv"
+	"github.com/shopspring/decimal"
 )
 
 type sDefi struct{}
@@ -28,14 +29,35 @@ func (s *sDefi) GetDefiRate(ctx context.Context) (res *v1.GetDefiRateRes, err er
 	res = &v1.GetDefiRateRes{
 		List: make([]v1.DefiRateInfo, 0, len(list)),
 	}
+
+	// 2. 空数据处理
+	if len(list) == 0 {
+		return res, nil
+	}
+
 	for _, item := range list {
+		// 3. 字段类型匹配 (处理潜在的 float64 精度风险)
+		dailyRate, _ := decimal.NewFromFloat(item.Rate).Round(4).Float64()
+		minAmount, _ := decimal.NewFromFloat(item.MinAmount).Round(4).Float64()
+		maxAmount, _ := decimal.NewFromFloat(item.MaxAmount).Round(4).Float64()
+
+		// 1. 解决硬编码问题 (从表字段读取，做降级容错)
+		symbol := item.Symbol
+		if symbol == "" {
+			symbol = "USDT"
+		}
+		rewardCoin := item.RewardCoin
+		if rewardCoin == "" {
+			rewardCoin = "ETH"
+		}
+
 		res.List = append(res.List, v1.DefiRateInfo{
 			Id:         item.Id,
-			MinAmount:  item.MinAmount,
-			MaxAmount:  item.MaxAmount,
-			DailyRate:  item.Rate,
-			Symbol:     "USDT", // 默认固定锁 USDT
-			RewardCoin: "ETH",  // 默认固定投 ETH
+			MinAmount:  minAmount,
+			MaxAmount:  maxAmount,
+			DailyRate:  dailyRate,
+			Symbol:     symbol,
+			RewardCoin: rewardCoin,
 		})
 	}
 	return

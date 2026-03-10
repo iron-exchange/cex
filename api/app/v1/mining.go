@@ -51,3 +51,41 @@ type MiningRedemptionReq struct {
 type MiningRedemptionRes struct {
 	Success bool `json:"success"`
 }
+
+// MingProductListReq 查询产品大厅
+type MingProductListReq struct {
+	g.Meta `path:"/mingProduct/list" tags:"Mining" method:"post" summary:"单独查询矿机产品列表"`
+}
+
+type MingProductListRes struct {
+	Rows []MiningProductInfo `json:"rows"`
+}
+
+// MingOrderListReq 查询我的订单
+type MingOrderListReq struct {
+	g.Meta `path:"/mingOrder/list" tags:"Mining" method:"post" summary:"单独查询挖矿全部订单"`
+}
+
+type MingOrderListRes struct {
+	Rows []MiningOrderInfo `json:"rows"`
+}
+
+// MingOrderRedemptionNewReq 特殊标识提前赎回
+type MingOrderRedemptionNewReq struct {
+	g.Meta  `path:"/mingOrder/redempNewtion" tags:"Mining" method:"post" summary:"钱包渠道赎回"`
+	OrderNo string `json:"orderNo" v:"required#订单号不能为空"`
+}
+
+type MingOrderRedemptionNewRes struct {
+	Success bool `json:"success"`
+}
+
+// MingOrderDetailReq 查单个订单详情
+type MingOrderDetailReq struct {
+	g.Meta `path:"/mingOrder/{id}" tags:"Mining" method:"post" summary:"查询单个单子详情"`
+	Id     int64 `json:"id" in:"path" v:"required#ID必传"`
+}
+
+type MingOrderDetailRes struct {
+	Data MiningOrderInfo `json:"data"`
+}

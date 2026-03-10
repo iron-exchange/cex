@@ -48,3 +48,27 @@ func (c *Controller) MiningRedemption(ctx context.Context, req *v1.MiningRedempt
 	err = mining.New().Redemption(ctx, userId, req.OrderNo)
 	return &v1.MiningRedemptionRes{Success: err == nil}, err
 }
+
+// MingProductList 单独查询可用矿机列表
+func (c *Controller) MingProductList(ctx context.Context, req *v1.MingProductListReq) (res *v1.MingProductListRes, err error) {
+	return mining.New().GetProductList(ctx, req)
+}
+
+// MingOrderList 单独查询我的订单
+func (c *Controller) MingOrderList(ctx context.Context, req *v1.MingOrderListReq) (res *v1.MingOrderListRes, err error) {
+	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
+	return mining.New().GetOrderList(ctx, userId, req)
+}
+
+// MingOrderDetail 查询单笔订单详情
+func (c *Controller) MingOrderDetail(ctx context.Context, req *v1.MingOrderDetailReq) (res *v1.MingOrderDetailRes, err error) {
+	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
+	return mining.New().GetOrderDetail(ctx, userId, req)
+}
+
+// MingOrderRedemptionNew 特殊标识提前赎回 (Wallet等客户端不同标识)
+func (c *Controller) MingOrderRedemptionNew(ctx context.Context, req *v1.MingOrderRedemptionNewReq) (res *v1.MingOrderRedemptionNewRes, err error) {
+	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
+	err = mining.New().Redemption(ctx, userId, req.OrderNo)
+	return &v1.MingOrderRedemptionNewRes{Success: err == nil}, err
+}

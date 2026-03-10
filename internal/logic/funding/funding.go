@@ -6,6 +6,8 @@ import (
 	"github.com/gogf/gf/v2/crypto/gmd5"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gtime"
+	"github.com/gogf/gf/v2/util/gconv"
 
 	adminV1 "GoCEX/api/admin/v1"
 	v1 "GoCEX/app/api"
@@ -13,6 +15,7 @@ import (
 	"GoCEX/internal/dao"
 	"GoCEX/internal/logic/asset"
 	"GoCEX/internal/model/entity"
+	"GoCEX/internal/service/websocket"
 )
 
 type sFunding struct{}
@@ -41,7 +44,8 @@ func (s *sFunding) RechargeSubmit(ctx context.Context, userId uint64, in *v1.Rec
 		dao.AppRecharge.Columns().Address:  in.Address,
 		dao.AppRecharge.Columns().TxId:     in.TxId,
 		dao.AppRecharge.Columns().FileName: in.Pic,
-		dao.AppRecharge.Columns().Status:   0, // 0 = 待审核
+		dao.AppRecharge.Columns().Status:   0,                                                          // 0 = 待审核
+		dao.AppRecharge.Columns().SerialId: "RC" + gtime.Now().Format("YmdHis") + gconv.String(userId), // 充值流水订单号
 	}
 
 	result, err := dao.AppRecharge.Ctx(ctx).Data(record).Insert()
@@ -56,6 +60,9 @@ func (s *sFunding) RechargeSubmit(ctx context.Context, userId uint64, in *v1.Rec
 	if err != nil {
 		g.Log().Error(ctx, "推送充值消息至Redis失败", err)
 	}
+
+	// 立刻通过 WebSocket 推送至后台 Admin 前端页面，eventType=1 (举例:1充值)
+	websocket.PublishToAdmin(ctx, 1)
 
 	return nil
 }
@@ -127,6 +134,9 @@ func (s *sFunding) WithdrawSubmit(ctx context.Context, userId uint64, in *v1.Wit
 	if err != nil {
 		g.Log().Error(ctx, "推送提现消息至Redis失败", err)
 	}
+
+	// 立刻通过 WebSocket 推送至后台 Admin 前端页面，eventType=2 (举例:2提现)
+	websocket.PublishToAdmin(ctx, 2)
 
 	return nil
 }
