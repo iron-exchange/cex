@@ -9,6 +9,7 @@ import (
 	"GoCEX/admin/controller/bank"
 	"GoCEX/admin/controller/bot"
 	"GoCEX/admin/controller/collection"
+	"GoCEX/admin/controller/common"
 	"GoCEX/admin/controller/contract"
 	"GoCEX/admin/controller/currency_trading"
 	"GoCEX/admin/controller/dashboard"
@@ -25,9 +26,15 @@ import (
 	"GoCEX/admin/controller/rbac"
 	"GoCEX/admin/controller/report"
 	"GoCEX/admin/controller/second_contract"
+	"GoCEX/admin/controller/statistics"
 	"GoCEX/admin/controller/swap"
 	"GoCEX/admin/controller/system"
 	"GoCEX/admin/controller/user"
+	"GoCEX/admin/controller/user_bank"
+	"GoCEX/admin/controller/user_detail"
+	"GoCEX/admin/controller/user_log"
+	"GoCEX/admin/controller/user_recharge"
+	"GoCEX/admin/controller/user_withdraw"
 	"GoCEX/admin/controller/wallet_record"
 	"GoCEX/internal/controller/admin/asset"
 	"GoCEX/internal/service/middleware"
@@ -50,9 +57,16 @@ var (
 			s.Use(ghttp.MiddlewareCORS)
 			s.Use(middleware.HandlerResponse)
 
-			// 很多前端默认请求放在 / 或者 /dev-api 下，这里将登录相关绑定在根路由下，或者 v1 中皆可，保持兼容
+			// 登出接口单独挂载在 server 层而非任何 Group 下，避免被 JWT 中间件拦截
+			logoutFunc := func(r *ghttp.Request) {
+				r.Response.WriteJson(g.Map{"code": 200, "msg": "成功", "data": nil})
+			}
+			s.BindHandler("POST:/logout", logoutFunc)
+			s.BindHandler("POST:/api/admin/v1/logout", logoutFunc)
+
 			authCtrl := auth.New()
 			s.Group("/", func(group *ghttp.RouterGroup) {
+				group.Middleware(middleware.CtxAdminAuth)
 				group.Bind(authCtrl)
 
 				// 兼容原版 /webSocket/notice/{userId}/{uuId} 消息推送路由 (双路绑定，防止前端没改)
@@ -65,6 +79,11 @@ var (
 				group.Middleware(middleware.CtxAdminAuth)
 				assetCtrl := asset.New()
 				userCtrl := user.New()
+				userBankCtrl := user_bank.New()
+				userDetailCtrl := user_detail.New()
+				userLogCtrl := user_log.New()
+				userRechargeCtrl := user_recharge.New()
+				userWithdrawCtrl := user_withdraw.New()
 				kycCtrl := kyc.New()
 				addressCtrl := address.New()
 				bankCtrl := bank.New()
@@ -89,12 +108,19 @@ var (
 				systemCtrl := system.New()
 				rbacCtrl := rbac.New()
 				monitorCtrl := monitor.New()
+				commonCtrl := common.New()
+				statisticsCtrl := statistics.New()
 
 				// 如果前端也带前缀请求 Auth，也同时挂载一份在这里
 				group.Bind(
 					authCtrl,
 					assetCtrl,
 					userCtrl,
+					userBankCtrl,
+					userDetailCtrl,
+					userLogCtrl,
+					userRechargeCtrl,
+					userWithdrawCtrl,
 					kycCtrl,
 					addressCtrl,
 					bankCtrl,
@@ -119,6 +145,8 @@ var (
 					systemCtrl,
 					rbacCtrl,
 					monitorCtrl,
+					commonCtrl,
+					statisticsCtrl,
 				)
 			})
 

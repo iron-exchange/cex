@@ -20,9 +20,16 @@ func New() *Controller {
 // Config 获取系统大厅配置
 func (c *Controller) Config(ctx context.Context, req *v1.CommonConfigReq) (res *v1.CommonConfigRes, err error) {
 	return common.New().GetConfig(ctx)
-} // GetAllSetting 获取系统全站配置参数
-func (c *Controller) GetAllSetting(ctx context.Context, req *v1.GetAllSettingReq) (res *v1.GetAllSettingRes, err error) {
+}
+
+// GetAllSetting 获取系统全站配置参数
+func (c *Controller) GetAllSetting(ctx context.Context, req *v1.GetAllSettingReq) (res v1.GetAllSettingRes, err error) {
 	return common.New().GetAllSetting(ctx)
+}
+
+// CaptchaImage 生成图形验证码
+func (c *Controller) CaptchaImage(ctx context.Context, req *v1.CaptchaImageReq) (res *v1.CaptchaImageRes, err error) {
+	return common.New().CaptchaImage(ctx)
 }
 
 // GetAppSidebarSetting 获取侧边栏显示的币种

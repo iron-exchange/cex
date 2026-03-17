@@ -91,7 +91,7 @@ func (s *sDefi) ShowIncome(ctx context.Context, userId uint64) (res *v1.ShowInco
 	}
 	for _, item := range list {
 		res.List = append(res.List, v1.DefiIncomeInfo{
-			Date:       item.CreateTime.Format("2006-01-02"),
+			Date:       item.CreateTime.Format("Y-m-d"),
 			Amount:     item.TotleAmount,
 			Reward:     item.Amount,
 			RewardCoin: "ETH",
@@ -121,7 +121,7 @@ func (s *sDefi) ShowOrder(ctx context.Context, userId uint64) (res *v1.ShowOrder
 			Address:    item.Address,
 			UsdtAmount: item.Usdt,
 			Status:     0,
-			CreateTime: item.CreateTime.Format("2006-01-02 15:04:05"),
+			CreateTime: item.CreateTime.Format("Y-m-d H:i:s"),
 		})
 	}
 	return

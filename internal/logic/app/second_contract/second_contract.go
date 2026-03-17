@@ -149,8 +149,8 @@ func (s *sAppSecond) CreateOrder(ctx context.Context, userId uint64, req *v1.Cre
 			UserId:     gconv.Int64(userId),
 			Symbol:     strings.ToUpper(coin.BaseCoin),
 			Amount:     -req.BetAmount,
-			RecordType: 22, // 22 是秒合约下单类型
-			Remark:     "秒合约下单",
+			RecordType: 5, // 5 是秒合约下注类型，对齐 Java 版
+			Remark:     "秒合约下注-",
 		}, func(ctx context.Context, subTx gdb.TX) error {
 			// 2. 写入订单（用 g.Map 而非 struct 避免 OmitEmpty 吃掉 status=0 等零値字段）
 			nowTS := time.Now().Unix()
@@ -186,9 +186,8 @@ func (s *sAppSecond) CreateOrder(ctx context.Context, userId uint64, req *v1.Cre
 // SelectOrderList 查询订单
 func (s *sAppSecond) SelectOrderList(ctx context.Context, userId uint64, req *v1.SelectSecondOrderListReq) (*v1.SelectSecondOrderListRes, error) {
 	m := dao.SecondContractOrder.Ctx(ctx).Where("user_id", userId)
-	if req.Status != -1 {
-		// 传了具体的 status 才过滤
-		// frontend 可能传 0 或 1
+	if req.Status != 2 {
+		// 0=未结算 1=已结算 2=全部(不加过滤)
 		m = m.Where("status", req.Status)
 	}
 
@@ -215,7 +214,7 @@ func (s *sAppSecond) SelectOrderList(ctx context.Context, userId uint64, req *v1
 			OpenPrice:  o.OpenPrice,
 			ClosePrice: o.ClosePrice,
 			RewardAmt:  o.RewardAmount,
-			CreateTime: o.CreateTime.Format("2006-01-02 15:04:05"),
+			CreateTime: o.CreateTime.Format("Y-m-d H:i:s"),
 			OpenTime:   o.OpenTime,
 			CloseTime:  o.CloseTime,
 		})

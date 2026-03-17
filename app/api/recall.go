@@ -16,12 +16,17 @@ type UncCallbackReq struct {
 
 // UdunBody 优盾回调的内层 Body 结构反序列化载体
 type UdunBody struct {
-	Address string `json:"address"` // 收款地址
-	Amount  string `json:"amount"`  // 交易金额 (由于可能极小值，优盾默认推 String)
-	Coin    string `json:"coin"`    // 链上手续费币种标记或主币标记
-	TxId    string `json:"txId"`    // 链上哈希 Hash
-	Type    string `json:"type"`    // 充值/提现枚举
-	Status  int    `json:"status"`  // 优盾订单状态
+	TradeType    int    `json:"tradeType"`    // 业务类型 (1: 充值/代收, 2: 提现/代付)
+	Status       int    `json:"status"`       // 交易状态 (0待审核, 1审核通过, 2审核驳回, 3交易成功, 4交易失败)
+	BusinessId   string `json:"businessId"`   // 业务 ID (提现订单号)
+	Address      string `json:"address"`      // 交易钱包地址
+	Amount       string `json:"amount"`       // 交易金额 (最小单位整数型)
+	Decimals     int    `json:"decimals"`     // 币种精度
+	Fee          string `json:"fee"`          // 链上实际消耗手续费
+	TxId         string `json:"txId"`         // 链上哈希 Hash
+	MainCoinType string `json:"mainCoinType"` // 优盾币种主 ID
+	CoinType     string `json:"coinType"`     // 优盾币种 ID
+	Coin         string `json:"coin"`         // 币种名称 (如 USDT)
 }
 
 // UncCallbackRes 优盾回调响应

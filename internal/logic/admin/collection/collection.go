@@ -19,37 +19,65 @@ func (s *sAdminCollection) GetCollectionOrderList(ctx context.Context, req *v1.G
 	if req.UserId > 0 {
 		m = m.Where("user_id", req.UserId)
 	}
-	if req.TxHash != "" {
-		m = m.WhereLike("hash", "%"+req.TxHash+"%")
+	if req.OrderId != "" {
+		m = m.Where("order_id", req.OrderId)
 	}
-	// Status in DB is a string (e.g., "1", "2")
-	if req.Status != nil {
-		m = m.Where("status", *req.Status)
+	if req.Address != "" {
+		m = m.Where("address", req.Address)
+	}
+	if req.Chain != "" {
+		m = m.Where("chain", req.Chain)
+	}
+	if req.Coin != "" {
+		m = m.Where("coin", req.Coin)
+	}
+	if req.Hash != "" {
+		m = m.Where("hash", req.Hash)
+	}
+	if req.Amount > 0 {
+		m = m.Where("amount", req.Amount)
+	}
+	if req.Status != "" {
+		m = m.Where("status", req.Status)
+	}
+	if req.ClientName != "" {
+		m = m.WhereLike("client_name", "%"+req.ClientName+"%")
+	}
+	if req.SearchValue != "" {
+		m = m.WhereLike("search_value", "%"+req.SearchValue+"%")
 	}
 
 	total, _ := m.Count()
 	var list []entity.CollectionOrder
-	err := m.Page(req.Page, req.Size).OrderDesc("create_time").Scan(&list)
+	err := m.Page(req.PageNum, req.PageSize).OrderDesc("create_time").Scan(&list)
 	if err != nil {
 		return nil, err
 	}
 
-	resList := make([]v1.CollectionOrderInfo, 0, len(list))
+	resRows := make([]v1.CollectionOrderInfo, 0, len(list))
 	for _, c := range list {
-		resList = append(resList, v1.CollectionOrderInfo{
-			Id:         c.Id,
-			UserId:     c.UserId,
-			Amount:     c.Amount,
-			Coin:       c.Coin,
-			Address:    c.Address,
-			TxHash:     c.Hash,
-			Status:     c.Status,
-			CreateTime: c.CreateTime.Format("2006-01-02 15:04:05"),
+		resRows = append(resRows, v1.CollectionOrderInfo{
+			Id:          c.Id,
+			OrderId:     c.OrderId,
+			UserId:      c.UserId,
+			Address:     c.Address,
+			Chain:       c.Chain,
+			Coin:        c.Coin,
+			Hash:        c.Hash,
+			Amount:      c.Amount,
+			Status:      c.Status,
+			ClientName:  c.ClientName,
+			CreateTime:  c.CreateTime,
+			CreateBy:    c.CreateBy,
+			UpdateTime:  c.UpdateTime,
+			UpdateBy:    c.UpdateBy,
+			Remark:      c.Remark,
+			SearchValue: c.SearchValue,
 		})
 	}
 
 	return &v1.GetCollectionOrderListRes{
-		List:  resList,
+		Rows:  resRows,
 		Total: total,
 	}, nil
 }

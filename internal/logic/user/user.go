@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"errors"
+	"strings"
 
 	v1 "GoCEX/api/app/v1"
 	"GoCEX/internal/codes"
@@ -13,6 +14,7 @@ import (
 	"github.com/gogf/gf/v2/crypto/gmd5"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/gogf/gf/v2/util/grand"
 )
@@ -46,6 +48,12 @@ func (s *sUser) verifyCode(ctx context.Context, scene, accountType, account, cod
 	// 验证成功后立即销毁，防止重播攻击
 	_, _ = g.Redis().Do(ctx, "DEL", redisKey)
 	return nil
+}
+
+// GenerateActiveCode 生成唯一的邀请码
+func (s *sUser) GenerateActiveCode(ctx context.Context) string {
+	// 不再使用 Redis，改为生成 6 位随机大写字母+数字
+	return grand.S(6, true)
 }
 
 // Register 注册新用户
@@ -114,7 +122,7 @@ func (s *sUser) Register(ctx context.Context, in *v1.RegisterReq) (*v1.RegisterR
 	}
 
 	// 生成当前用户自己的邀请码
-	newActiveCode := gconv.String(g.Redis().MustDo(ctx, "INCR", "CEX:GLOBAL:INVITE_CODE").Int64() + 10000)
+	newActiveCode := s.GenerateActiveCode(ctx)
 
 	// 组装入库实体
 	userMap := g.Map{
@@ -135,6 +143,9 @@ func (s *sUser) Register(ctx context.Context, in *v1.RegisterReq) (*v1.RegisterR
 		dao.AppUser.Columns().Email:          "",
 		dao.AppUser.Columns().Address:        "",
 		dao.AppUser.Columns().WalletType:     "",
+		dao.AppUser.Columns().CreateTime:     gtime.Now(),
+		dao.AppUser.Columns().UpdateTime:     gtime.Now(),
+		dao.AppUser.Columns().CreateBy:       accountVal,
 	}
 
 	// 绑定对应账号字段
@@ -143,8 +154,10 @@ func (s *sUser) Register(ctx context.Context, in *v1.RegisterReq) (*v1.RegisterR
 		userMap[dao.AppUser.Columns().LoginName] = accountVal
 	case "PHONE":
 		userMap[dao.AppUser.Columns().Phone] = accountVal
+		userMap[dao.AppUser.Columns().LoginName] = accountVal
 	case "EMAIL":
 		userMap[dao.AppUser.Columns().Email] = accountVal
+		userMap[dao.AppUser.Columns().LoginName] = accountVal
 	case "ADDRESS":
 		userMap[dao.AppUser.Columns().Address] = accountVal
 		userMap[dao.AppUser.Columns().WalletType] = "ETH" // 默认为以太坊体系
@@ -232,7 +245,10 @@ func (s *sUser) PwdSett(ctx context.Context, userId uint64, req *v1.PwdSettReq) 
 
 	// 更新登录密码
 	_, err := dao.AppUser.Ctx(ctx).Where(dao.AppUser.Columns().UserId, userId).
-		Data(g.Map{dao.AppUser.Columns().LoginPassword: hashedPassword}).Update()
+		Data(g.Map{
+			dao.AppUser.Columns().LoginPassword: hashedPassword,
+			dao.AppUser.Columns().UpdateTime:    gtime.Now(),
+		}).Update()
 	return err
 }
 
@@ -247,12 +263,18 @@ func (s *sUser) TardPwdSet(ctx context.Context, userId uint64, req *v1.TardPwdSe
 	}
 	if count > 0 {
 		_, err = dao.AppUserDetail.Ctx(ctx).Where(dao.AppUserDetail.Columns().UserId, userId).
-			Data(g.Map{dao.AppUserDetail.Columns().UserTardPwd: hashedPassword}).Update()
+			Data(g.Map{
+				dao.AppUserDetail.Columns().UserTardPwd: hashedPassword,
+				dao.AppUserDetail.Columns().UpdateTime:  gtime.Now(),
+			}).Update()
 	} else {
 		_, err = dao.AppUserDetail.Ctx(ctx).Data(g.Map{
 			dao.AppUserDetail.Columns().Id:          userId, // 修复无自增序列报错
 			dao.AppUserDetail.Columns().UserId:      userId,
 			dao.AppUserDetail.Columns().UserTardPwd: hashedPassword,
+			dao.AppUserDetail.Columns().CreateTime:  gtime.Now(),
+			dao.AppUserDetail.Columns().UpdateTime:  gtime.Now(),
+			dao.AppUserDetail.Columns().CreateBy:    gconv.String(userId),
 		}).Insert()
 	}
 	return err
@@ -276,7 +298,10 @@ func (s *sUser) BindPhone(ctx context.Context, userId uint64, req *v1.BindPhoneR
 	}
 
 	_, err = dao.AppUser.Ctx(ctx).Where(dao.AppUser.Columns().UserId, userId).
-		Data(g.Map{dao.AppUser.Columns().Phone: req.Phone}).Update()
+		Data(g.Map{
+			dao.AppUser.Columns().Phone:      req.Phone,
+			dao.AppUser.Columns().UpdateTime: gtime.Now(),
+		}).Update()
 	return err
 }
 
@@ -298,7 +323,10 @@ func (s *sUser) BindEmail(ctx context.Context, userId uint64, req *v1.BindEmailR
 	}
 
 	_, err = dao.AppUser.Ctx(ctx).Where(dao.AppUser.Columns().UserId, userId).
-		Data(g.Map{dao.AppUser.Columns().Email: req.Email}).Update()
+		Data(g.Map{
+			dao.AppUser.Columns().Email:      req.Email,
+			dao.AppUser.Columns().UpdateTime: gtime.Now(),
+		}).Update()
 	return err
 }
 
@@ -311,6 +339,7 @@ func (s *sUser) UpdateUserAddress(ctx context.Context, currentUserId uint64, req
 		Data(g.Map{
 			dao.AppUser.Columns().Address:    req.Address,
 			dao.AppUser.Columns().WalletType: req.Type,
+			dao.AppUser.Columns().UpdateTime: gtime.Now(),
 		}).Update()
 	if err != nil {
 		return err
@@ -328,7 +357,9 @@ func (s *sUser) UpdateUserAddress(ctx context.Context, currentUserId uint64, req
 		_, err = dao.AppUserAddress.Ctx(ctx).
 			Where(dao.AppUserAddress.Columns().UserId, targetUserId).
 			Where(dao.AppUserAddress.Columns().Symbol, req.Type).
-			Data(g.Map{dao.AppUserAddress.Columns().Address: req.Address}).Update()
+			Data(g.Map{
+				dao.AppUserAddress.Columns().Address: req.Address,
+			}).Update()
 	} else {
 		_, err = dao.AppUserAddress.Ctx(ctx).Data(g.Map{
 			dao.AppUserAddress.Columns().UserId:  targetUserId,
@@ -365,10 +396,14 @@ func (s *sUser) UploadKYC(ctx context.Context, userId uint64, req *v1.UploadKYCR
 	}
 
 	if count > 0 {
+		data[dao.AppUserDetail.Columns().UpdateTime] = gtime.Now()
 		_, err = dao.AppUserDetail.Ctx(ctx).Where(dao.AppUserDetail.Columns().UserId, userId).Data(data).Update()
 	} else {
 		data[dao.AppUserDetail.Columns().Id] = userId // 修复无自增序列报错
 		data[dao.AppUserDetail.Columns().UserId] = userId
+		data[dao.AppUserDetail.Columns().CreateTime] = gtime.Now()
+		data[dao.AppUserDetail.Columns().UpdateTime] = gtime.Now()
+		data[dao.AppUserDetail.Columns().CreateBy] = gconv.String(userId)
 		_, err = dao.AppUserDetail.Ctx(ctx).Data(data).Insert()
 	}
 
@@ -419,6 +454,41 @@ func (s *sUser) GetUserInfo(ctx context.Context, userId uint64) (*v1.GetUserInfo
 	// 可能有很多老用户尚未记录 detail 表，所以不报错跳过，用默认空值即可
 	_ = dao.AppUserDetail.Ctx(ctx).Where(dao.AppUserDetail.Columns().UserId, userId).Scan(&detail)
 
+	// 查询资产明细
+	var assets []entity.AppAsset
+	_ = dao.AppAsset.Ctx(ctx).Where(dao.AppAsset.Columns().UserId, userId).
+		Where(dao.AppAsset.Columns().Type, "1").Scan(&assets)
+
+	// 预查币种图标
+	var symbols []entity.CurrencySymbol
+	_ = dao.CurrencySymbol.Ctx(ctx).Scan(&symbols)
+	logoMap := make(map[string]string)
+	for _, s := range symbols {
+		logoMap[strings.ToLower(s.Coin)] = s.Logo
+	}
+
+	assetList := make([]v1.UserAsset, 0, len(assets))
+	for _, a := range assets {
+		// 从 Redis 获取实时价格 (USDT 价值)
+		exchangeAmount := a.AvailableAmount
+		symbolLower := strings.ToLower(a.Symbol)
+		if symbolLower != "usdt" {
+			key := "CURRENCY_PRICE"
+			field := strings.ToUpper(a.Symbol) + "_USDT"
+			price, _ := g.Redis().Do(ctx, "HGET", key, field)
+			if !price.IsEmpty() {
+				exchangeAmount = a.AvailableAmount * price.Float64()
+			}
+		}
+
+		assetList = append(assetList, v1.UserAsset{
+			Symbol:          a.Symbol,
+			AvailableAmount: a.AvailableAmount,
+			ExchageAmount:   exchangeAmount,
+			Logo:            logoMap[symbolLower],
+		})
+	}
+
 	return &v1.GetUserInfoRes{
 		UserId:              user.UserId,
 		LoginName:           user.LoginName,
@@ -432,5 +502,6 @@ func (s *sUser) GetUserInfo(ctx context.Context, userId uint64) (*v1.GetUserInfo
 		RealName:            detail.RealName,
 		AuditStatusPrimary:  detail.AuditStatusPrimary,
 		AuditStatusAdvanced: detail.AuditStatusAdvanced,
+		Asset:               assetList,
 	}, nil
 }

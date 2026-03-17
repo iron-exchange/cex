@@ -57,7 +57,7 @@ type CreateSecondOrderRes struct {
 
 type SelectSecondOrderListReq struct {
 	g.Meta `path:"/secondContractOrder/selectOrderList" tags:"SecondContract" method:"post" summary:"查询秒合约订单列表"`
-	Status int `json:"status"` // 0参与中 1已开奖 2已撤销 (如果传空或特定值查全部, 需在logic判断)
+	Status int `json:"status" d:"2"` // 0未结算 1已结算 2全部(默认)
 	Page   int `json:"pageNum" d:"1"`
 	Size   int `json:"pageSize" d:"20"`
 }

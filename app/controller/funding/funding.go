@@ -30,3 +30,15 @@ func (c *Controller) WithdrawSubmit(ctx context.Context, req *v1.WithdrawSubmitR
 	err = funding.New().WithdrawSubmit(ctx, userId, req)
 	return &v1.WithdrawSubmitRes{}, err
 }
+
+// GetRechargeList 获取充值列表
+func (c *Controller) GetRechargeList(ctx context.Context, req *v1.RechargeListReq) (res *v1.RechargeListRes, err error) {
+	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
+	return funding.New().GetRechargeList(ctx, userId, req)
+}
+
+// GetWithdrawList 获取提现列表
+func (c *Controller) GetWithdrawList(ctx context.Context, req *v1.WithdrawListReq) (res *v1.WithdrawListRes, err error) {
+	userId := gconv.Uint64(middleware.Auth.GetIdentity(ctx))
+	return funding.New().GetWithdrawList(ctx, userId, req)
+}

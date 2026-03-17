@@ -59,3 +59,71 @@ type GetOwnCoinSubscribeOrderListRes struct {
 	List  []OwnCoinSubscribeOrderInfo `json:"list"`
 	Total int                         `json:"total"`
 }
+
+// --------- 申购订单 (IEO OwnCoin Orders) ---------
+type OwnCoinOrderInfo struct {
+	Id             int64   `json:"id"`
+	UserId         int64   `json:"userId"`
+	OrderId        string  `json:"orderId"`
+	OwnId          int64   `json:"ownId"`
+	OwnCoin        string  `json:"ownCoin"`
+	Number         int     `json:"number"`
+	Price          float64 `json:"price"`
+	Amount         float64 `json:"amount"`
+	Status         string  `json:"status"`
+	AdminUserIds   string  `json:"adminUserIds"`
+	AdminParentIds string  `json:"adminParentIds"`
+	CreateTime     string  `json:"createTime"`
+	UpdateTime     string  `json:"updateTime"`
+	CreateBy       string  `json:"createBy"`
+	UpdateBy       string  `json:"updateBy"`
+	Remark         string  `json:"remark"`
+}
+
+type GetOwnCoinOrderListReq struct {
+	g.Meta   `path:"/bussiness/ownCoinOrder/list" tags:"AdminIEO" method:"get" summary:"获取IEO认购订单列表"`
+	PageNum  int    `json:"pageNum" d:"1"`
+	PageSize int    `json:"pageSize" d:"10"`
+	UserId   int64  `json:"userId" dc:"用户ID"`
+	OrderId  string `json:"orderId" dc:"订单号"`
+	OwnId    int64  `json:"ownId" dc:"新币ID"`
+	Status   string `json:"status" dc:"状态"`
+}
+
+type GetOwnCoinOrderListRes struct {
+	Rows  []OwnCoinOrderInfo `json:"data"`
+	Total int                `json:"total"`
+}
+
+type EditOwnCoinOrderPlacingReq struct {
+	g.Meta `path:"/bussiness/ownCoinOrder/editPlacing" tags:"AdminIEO" method:"post" summary:"审批/调整新币申购订单"`
+	Id     int64 `json:"id" v:"required#订单ID不能为空"`
+	Number int   `json:"number" v:"required#调整后的数量不能为空"`
+}
+
+type GetOwnCoinOrderReq struct {
+	g.Meta `path:"/bussiness/ownCoinOrder/{id}" tags:"AdminIEO" method:"get" summary:"获取新币申购订单详情"`
+	Id     int64 `path:"id"`
+}
+
+type CreateOwnCoinOrderReq struct {
+	g.Meta `path:"/bussiness/ownCoinOrder" tags:"AdminIEO" method:"post" summary:"管理员手动补单"`
+	UserId int64   `json:"userId" v:"required#用户ID不能为空"`
+	OwnId  int64   `json:"ownId" v:"required#新币ID不能为空"`
+	Number int     `json:"number" v:"required#申购数量不能为空"`
+	Price  float64 `json:"price" v:"required#申购价格不能为空"`
+	Remark string  `json:"remark"`
+}
+
+type DeleteOwnCoinOrderReq struct {
+	g.Meta `path:"/bussiness/ownCoinOrder/{ids}" tags:"AdminIEO" method:"delete" summary:"批量删除申购记录"`
+	Ids    []int64 `path:"ids" v:"required#ID数组不能为空"`
+}
+
+type ExportOwnCoinOrderReq struct {
+	g.Meta  `path:"/bussiness/ownCoinOrder/export" tags:"AdminIEO" method:"post" summary:"导出申购明细"`
+	UserId  int64  `json:"userId"`
+	OrderId string `json:"orderId"`
+	OwnId   int64  `json:"ownId"`
+	Status  string `json:"status"`
+}

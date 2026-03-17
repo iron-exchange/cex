@@ -160,11 +160,12 @@ func (s *sTask) SettleSecondContract(ctx context.Context) error {
 						// 记录流水
 						_, _ = dao.AppWalletRecord.Ctx(ctx).Insert(entity.AppWalletRecord{
 							UserId:       int64(o.UserId),
-							Amount:       rewardAmount.InexactFloat64(),
-							Type:         41, // 暂定 41 表示秒合约奖金与本金返还
+							Amount:       rewardAmount.Abs().InexactFloat64(), // 绝对值
+							UAmount:      rewardAmount.Abs().InexactFloat64(),
+							Type:         9, // 9 表示秒合约结算，对齐 Java 版
 							SerialId:     o.OrderNo,
 							Symbol:       baseSymbol,
-							Remark:       "期权分账/" + openResult,
+							Remark:       "秒合约结算+",
 							BeforeAmount: userAsset.Amout,
 							AfterAmount:  newAmout.InexactFloat64(),
 							CreateTime:   gtime.Now(),

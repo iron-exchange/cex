@@ -7,7 +7,10 @@ import (
 	"GoCEX/internal/dao"
 	"GoCEX/internal/model/entity"
 
+	"github.com/gogf/gf/v2/encoding/gjson"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/util/gconv"
 )
 
 type sAdminSystem struct{}
@@ -172,12 +175,28 @@ func (s *sAdminSystem) GetDictDataList(ctx context.Context, req *v1.GetAdminSysD
 
 // GetDictDataByType 根据 Type 获取字典选项数组
 func (s *sAdminSystem) GetDictDataByType(ctx context.Context, req *v1.GetAdminDictDataByTypeReq) (*v1.GetAdminDictDataByTypeRes, error) {
+	userId := gconv.Int64(ctx.Value("adminId"))
+	m := dao.SysDictData.Ctx(ctx).Where("dict_type", req.DictType).Where("status", "0")
+
+	// 特殊逻辑：sys_user_type / user_type 权限过滤
+	if req.DictType == "sys_user_type" || req.DictType == "user_type" {
+		if userId != 1 {
+			// 查询当前后台用户的类型
+			var user entity.SysUser
+			_ = dao.SysUser.Ctx(ctx).Where("user_id", userId).Scan(&user)
+
+			if user.UserType == "1" {
+				// 代理商级管理员被过滤，只能看到特定选项 (如：只能看到 dictValue='2' 的选项)
+				m = m.Where("dict_value", "2")
+			} else if userId != 1 {
+				// 其他非超级管理员如果没有特殊定义，这里可能返回空，遵循 Ruoyi 逻辑
+				return &v1.GetAdminDictDataByTypeRes{List: []v1.AdminSysDictDataInfo{}}, nil
+			}
+		}
+	}
+
 	var list []entity.SysDictData
-	err := dao.SysDictData.Ctx(ctx).
-		Where("dict_type", req.DictType).
-		Where("status", "0").
-		OrderAsc("dict_sort").
-		Scan(&list)
+	err := m.OrderAsc("dict_sort").Scan(&list)
 	if err != nil {
 		return nil, err
 	}
@@ -186,11 +205,16 @@ func (s *sAdminSystem) GetDictDataByType(ctx context.Context, req *v1.GetAdminDi
 	for _, d := range list {
 		resList = append(resList, v1.AdminSysDictDataInfo{
 			DictCode:  d.DictCode,
+			DictSort:  d.DictSort,
 			DictLabel: d.DictLabel,
 			DictValue: d.DictValue,
+			DictType:  d.DictType,
 			ListClass: d.ListClass,
 			CssClass:  d.CssClass,
 			IsDefault: d.IsDefault,
+			Status:    d.Status,
+			Remark:    d.Remark,
+			Default:   d.IsDefault == "Y",
 		})
 	}
 	return &v1.GetAdminDictDataByTypeRes{List: resList}, nil
@@ -240,4 +264,119 @@ func (s *sAdminSystem) UpdateConfig(ctx context.Context, req *v1.UpdateAdminSysC
 		return nil, err
 	}
 	return &v1.UpdateAdminSysConfigRes{}, nil
+}
+
+// UpdateSetting 统一修改大盘单项配置 (类似原来 PUT /setting/put/{key})
+func (s *sAdminSystem) UpdateSetting(ctx context.Context, req *v1.AdminUpdateSettingReq) (*v1.AdminUpdateSettingRes, error) {
+	key := req.Key
+	value := req.Value
+
+	// 敏感配置鉴权拦截: 只有超级管理员能修改
+	if key == "WITHDRAWAL_CHANNEL_SETTING" || key == "ASSET_COIN" {
+		r := g.RequestFromCtx(ctx)
+		adminId := r.GetCtxVar("adminId").Int()
+		adminAccount := r.GetCtxVar("adminAccount").String()
+		if adminId != 1 && adminAccount != "admin" {
+			return nil, gerror.New("您没有操作权限，请联系管理员！")
+		}
+	}
+
+	count, err := dao.Setting.Ctx(ctx).Where("id", key).Count()
+	if err != nil {
+		return nil, err
+	}
+
+	// APP_SIDEBAR_SETTING 特殊合并逻辑: 合并新增/覆盖，而不是直接全量替换
+	if key == "APP_SIDEBAR_SETTING" && count > 0 {
+		var config entity.Setting
+		err = dao.Setting.Ctx(ctx).Where("id", key).Scan(&config)
+		if err == nil && config.SettingValue != "" {
+			// 解析旧的 JSON Array
+			oldJson, err1 := gjson.DecodeToJson(config.SettingValue)
+			newJson, err2 := gjson.DecodeToJson(value)
+
+			if err1 == nil && err2 == nil {
+				// 转换为 interface{} 切片
+				oldSlice := oldJson.Interfaces()
+				newSlice := newJson.Interfaces()
+
+				mergedMap := make(map[string]interface{})
+
+				for _, v := range oldSlice {
+					vm, ok := v.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					if name, hasName := vm["name"]; hasName {
+						mergedMap[gconv.String(name)] = vm
+					} else if path, hasPath := vm["path"]; hasPath {
+						mergedMap[gconv.String(path)] = vm
+					}
+				}
+
+				for _, v := range newSlice {
+					vm, ok := v.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					if name, hasName := vm["name"]; hasName {
+						mergedMap[gconv.String(name)] = vm
+					} else if path, hasPath := vm["path"]; hasPath {
+						mergedMap[gconv.String(path)] = vm
+					} else {
+						// 找不到特征键兜底
+						mergedMap[gconv.String(vm)] = vm
+					}
+				}
+
+				mergedArray := make([]interface{}, 0, len(mergedMap))
+				for _, v := range mergedMap {
+					mergedArray = append(mergedArray, v)
+				}
+
+				finalJsonBytes, _ := gjson.Encode(mergedArray)
+				value = string(finalJsonBytes)
+			}
+		}
+	}
+
+	if count > 0 {
+		// Update
+		_, err = dao.Setting.Ctx(ctx).Data(g.Map{"setting_value": value}).Where("id", key).Update()
+	} else {
+		// Insert
+		_, err = dao.Setting.Ctx(ctx).Data(g.Map{
+			"id":            key,
+			"setting_value": value,
+		}).Insert()
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &v1.AdminUpdateSettingRes{}, nil
+}
+func (s *sAdminSystem) GetSetting(ctx context.Context, req *v1.AdminGetSettingReq) (res v1.AdminGetSettingRes, err error) {
+	var config entity.Setting
+	err = dao.Setting.Ctx(ctx).Where("id", req.Key).Scan(&config)
+	if err != nil {
+		return nil, err
+	}
+
+	if config.SettingValue == "" {
+		return nil, nil
+	}
+
+	// 尝试作为 JSON 解析
+	if jsonWrap, err := gjson.Decode(config.SettingValue); err == nil {
+		if m, ok := jsonWrap.(map[string]interface{}); ok {
+			return m, nil
+		}
+		// 如果是数组或其他 JSON 类型，包装成 map 返回以适配 AdminGetSettingRes 类型并防止 Swagger 崩溃
+		return v1.AdminGetSettingRes{"value": jsonWrap}, nil
+	}
+
+	// 普通字符串也包装成 map
+	return v1.AdminGetSettingRes{"value": config.SettingValue}, nil
 }

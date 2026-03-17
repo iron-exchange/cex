@@ -10,19 +10,17 @@ import (
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/util/gconv"
 )
 
 // GetOwnCoinDetail 获取自发币详情
-func (s *sAppOwnCoin) GetOwnCoinDetail(ctx context.Context, req *v1.GetOwnCoinDetailReq) (*v1.GetOwnCoinDetailRes, error) {
+func (s *sAppOwnCoin) GetOwnCoinDetail(ctx context.Context, userId int64, req *v1.GetOwnCoinDetailReq) (*v1.GetOwnCoinDetailRes, error) {
 	var info entity.OwnCoin
 	err := dao.OwnCoin.Ctx(ctx).Where("id", req.OwnId).Scan(&info)
 	if err != nil || info.Id == 0 {
 		return nil, gerror.New("当前发行币不存在")
 	}
 
-	userId := gconv.Int64(g.RequestFromCtx(ctx).GetCtxVar("userId").Val())
+	// userId 已作为参数传入
 
 	// 统计该用户当前已申购的总额
 	purchasedAmt := 0.0
@@ -69,8 +67,7 @@ func (s *sAppOwnCoin) GetOwnCoinDetail(ctx context.Context, req *v1.GetOwnCoinDe
 }
 
 // SubscribeOwnCoin 用户认购自发币
-func (s *sAppOwnCoin) SubscribeOwnCoin(ctx context.Context, req *v1.SubscribeOwnCoinReq) (*v1.SubscribeOwnCoinRes, error) {
-	userId := gconv.Int64(g.RequestFromCtx(ctx).GetCtxVar("userId").Val())
+func (s *sAppOwnCoin) SubscribeOwnCoin(ctx context.Context, userId int64, req *v1.SubscribeOwnCoinReq) (*v1.SubscribeOwnCoinRes, error) {
 	if userId == 0 {
 		return nil, gerror.New("请先登录")
 	}

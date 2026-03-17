@@ -118,18 +118,26 @@ type SendCodeRes struct {
 
 // GetUserInfoRes 获取用户基础信息返回结构体
 type GetUserInfoRes struct {
-	UserId              int64  `json:"userId"`
-	LoginName           string `json:"loginName"`
-	Phone               string `json:"phone"`
-	Email               string `json:"email"`
-	Address             string `json:"address"`
-	WalletType          string `json:"walletType"`
-	Level               int    `json:"level"`
-	Status              int    `json:"status"`
-	IsFreeze            string `json:"isFreeze"`
-	RealName            string `json:"realName"`
-	AuditStatusPrimary  int    `json:"auditStatusPrimary"`
-	AuditStatusAdvanced int    `json:"auditStatusAdvanced"`
+	UserId              int64       `json:"userId"`
+	LoginName           string      `json:"loginName"`
+	Phone               string      `json:"phone"`
+	Email               string      `json:"email"`
+	Address             string      `json:"address"`
+	WalletType          string      `json:"walletType"`
+	Level               int         `json:"level"`
+	Status              int         `json:"status"`
+	IsFreeze            string      `json:"isFreeze"`
+	RealName            string      `json:"realName"`
+	AuditStatusPrimary  int         `json:"auditStatusPrimary"`
+	AuditStatusAdvanced int         `json:"auditStatusAdvanced"`
+	Asset               []UserAsset `json:"asset" dc:"资产明细"`
+}
+
+type UserAsset struct {
+	Symbol          string  `json:"symbol" dc:"币种名称"`
+	AvailableAmount float64 `json:"availableAmount" dc:"可用余额"`
+	ExchageAmount   float64 `json:"exchageAmount" dc:"折合 USDT 价值"`
+	Logo            string  `json:"logo" dc:"币种图标"`
 }
 
 // GetUserInfoReq 获取用户信息请求

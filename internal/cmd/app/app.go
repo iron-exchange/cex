@@ -50,7 +50,7 @@ var (
 				userCtrl := user.New()
 
 				// 放行: 注册、登录、与优盾第三方支付回调 Webhook
-				group.Group("/user", func(group *ghttp.RouterGroup) {
+				group.Group("", func(group *ghttp.RouterGroup) {
 					group.Bind(
 						userCtrl.Register,
 						userCtrl.Login,

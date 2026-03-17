@@ -92,6 +92,8 @@ type AdminSysDictDataInfo struct {
 	ListClass  string `json:"listClass"`
 	IsDefault  string `json:"isDefault"` // Y/N
 	Status     string `json:"status"`    // 0正常 1停用
+	Remark     string `json:"remark"`
+	Default    bool   `json:"default"`
 	CreateTime string `json:"createTime"`
 }
 
@@ -148,3 +150,17 @@ type UpdateAdminSysConfigReq struct {
 	ConfigValue string `json:"configValue" v:"required#配置值不能为空"`
 }
 type UpdateAdminSysConfigRes struct{}
+
+// --------- Setting 控制器 (PUT /setting/put/{key}) ---------
+type AdminUpdateSettingReq struct {
+	g.Meta `path:"/setting/put/{key}" tags:"AdminSetting" method:"put" summary:"统一修改系统大盘配置"`
+	Key    string `json:"key" in:"path" v:"required#Key不能为空"`
+	Value  string `json:"value" dc:"修改后的具体配置值 (原版是 Body 直接读取，现在适配架构用 JSON field)"`
+}
+type AdminUpdateSettingRes struct{}
+
+type AdminGetSettingReq struct {
+	g.Meta `path:"/setting/get/{key}" tags:"AdminSetting" method:"get" summary:"获取系统大盘单个配置"`
+	Key    string `json:"key" in:"path" v:"required#Key不能为空"`
+}
+type AdminGetSettingRes map[string]interface{}

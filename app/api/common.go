@@ -23,10 +23,9 @@ type SettingInfo struct {
 	Value string `json:"value" dc:"配置键值"`
 	Desc  string `json:"desc" dc:"说明"`
 }
-type GetAllSettingRes struct {
-	Settings map[string]string `json:"settings" dc:"KV配置集合"`
-	List     []SettingInfo     `json:"list" dc:"详细配置列表"`
-}
+
+// GetAllSettingRes 对应系统全站配置参数，直接返回键值对字典并支持嵌套 JSON
+type GetAllSettingRes map[string]interface{}
 
 // GetAppSidebarSettingReq 获取侧边栏显示的币种配置
 type GetAppSidebarSettingReq struct {
@@ -80,3 +79,14 @@ type MarketTickerWsReq struct {
 	g.Meta `path:"/market/ticker/ws" tags:"Market" method:"get" summary:"行情 WebSocket 订阅"`
 }
 type MarketTickerWsRes struct{}
+
+// CaptchaImageReq 生成图形验证码
+type CaptchaImageReq struct {
+	g.Meta `path:"/captchaImage" tags:"Common" method:"get" summary:"生成验证码"`
+}
+
+type CaptchaImageRes struct {
+	CaptchaEnabled bool   `json:"captchaEnabled" dc:"是否开启验证码"`
+	Uuid           string `json:"uuid" dc:"验证码唯一ID，提交登录时需要携带"`
+	Img            string `json:"img" dc:"Base64 验证码图片"`
+}

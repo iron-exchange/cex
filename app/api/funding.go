@@ -29,3 +29,61 @@ type WithdrawSubmitReq struct {
 
 // WithdrawSubmitRes 用户提现提交响应
 type WithdrawSubmitRes struct{}
+
+// RechargeListReq 获取充值列表请求
+type RechargeListReq struct {
+	g.Meta   `path:"/recharge/list" tags:"Funding" method:"get" summary:"获取充值列表"`
+	PageNum  int    `json:"pageNum" v:"min:1#页码最小为1" dc:"页码" d:"1"`
+	PageSize int    `json:"pageSize" v:"min:1|max:100#每页数量1-100" dc:"每页数量" d:"10"`
+	Coin     string `json:"coin" dc:"币种筛选"`
+}
+
+// RechargeListRes 获取充值列表响应
+type RechargeListRes struct {
+	Total int            `json:"total" dc:"总条数"`
+	Rows  []RechargeItem `json:"rows" dc:"数据列表"`
+}
+
+// RechargeItem 充值记录单项
+type RechargeItem struct {
+	Id         int64   `json:"id" dc:"ID"`
+	SerialId   string  `json:"serialId" dc:"订单号"`
+	Amount     float64 `json:"amount" dc:"申请数量"`
+	RealAmount float64 `json:"realAmount" dc:"到账数量"`
+	Coin       string  `json:"coin" dc:"币种"`
+	Type       string  `json:"type" dc:"通道类型"`
+	Status     int     `json:"status" dc:"状态: 0审核中, 1通过, 2拒绝"`
+	Address    string  `json:"address" dc:"充值地址"`
+	TxId       string  `json:"txId" dc:"链上Hash"`
+	Remark     string  `json:"remark" dc:"理由/备注"`
+	CreateTime string  `json:"createTime" dc:"创建时间"`
+}
+
+// WithdrawListReq 获取提现列表请求
+type WithdrawListReq struct {
+	g.Meta   `path:"/withdraw/list" tags:"Funding" method:"get" summary:"获取提现列表"`
+	PageNum  int    `json:"pageNum" v:"min:1#页码最小为1" dc:"页码" d:"1"`
+	PageSize int    `json:"pageSize" v:"min:1|max:100#每页数量1-100" dc:"每页数量" d:"10"`
+	Coin     string `json:"coin" dc:"币种筛选"`
+}
+
+// WithdrawListRes 获取提现列表响应
+type WithdrawListRes struct {
+	Total int            `json:"total" dc:"总条数"`
+	Rows  []WithdrawItem `json:"rows" dc:"数据列表"`
+}
+
+// WithdrawItem 提现记录单项
+type WithdrawItem struct {
+	Id         int     `json:"id" dc:"ID"`
+	SerialId   string  `json:"serialId" dc:"订单号"`
+	Amount     float64 `json:"amount" dc:"申请数量"`
+	Type       string  `json:"type" dc:"通道类型"`
+	Coin       string  `json:"coin" dc:"币种"`
+	Fee        float64 `json:"fee" dc:"手续费"`
+	RealAmount float64 `json:"realAmount" dc:"到账数量"`
+	Address    string  `json:"address" dc:"提现地址"`
+	Status     int     `json:"status" dc:"状态: 0审核中, 1成功, 2失败"`
+	Remark     string  `json:"remark" dc:"理由/备注"`
+	CreateTime string  `json:"createTime" dc:"创建时间"`
+}

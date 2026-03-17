@@ -3,74 +3,73 @@ package asset
 import (
 	"context"
 	"errors"
-	"time"
+	"fmt"
+	"hash/fnv"
+	"strings"
 
 	v1 "GoCEX/api/admin/v1"
 	"GoCEX/internal/codes"
-	"GoCEX/internal/consts"
 	"GoCEX/internal/dao"
 	"GoCEX/internal/model/entity"
 
-	"github.com/go-redsync/redsync/v4"
-	"github.com/go-redsync/redsync/v4/redis/goredis/v9"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/util/gconv"
-	goredislib "github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 )
 
-type sAsset struct {
-	rs *redsync.Redsync
-}
+type sAsset struct{}
 
 // New 创建独立锁的 Asset 服务层
 func New() *sAsset {
-	// GF V2 推荐直接从全局配置取参数建立 Redis 独立外锁连接
-	addr, _ := g.Cfg().Get(context.Background(), "redis.default.address")
-	if addr.IsEmpty() {
-		addr = g.NewVar("127.0.0.1:6379")
-	}
+	return &sAsset{}
+}
 
-	client := goredislib.NewClient(&goredislib.Options{
-		Addr: addr.String(),
-	})
-	pool := goredis.NewPool(client)
-	rs := redsync.New(pool)
-
-	return &sAsset{
-		rs: rs,
+// GetExchangeRate 获取实时汇率 (对 USDT 折合)
+func (s *sAsset) GetExchangeRate(ctx context.Context, symbol string) decimal.Decimal {
+	upperSymbol := strings.ToUpper(symbol)
+	if upperSymbol == "USDT" {
+		return decimal.NewFromInt(1)
 	}
+	// 从 Redis 取出实时行情。统一使用大写键名
+	priceStr, _ := g.Redis().Do(ctx, "GET", "CEX:PRICE:"+upperSymbol)
+	if !priceStr.IsEmpty() {
+		p, errParse := decimal.NewFromString(priceStr.String())
+		if errParse == nil && !p.IsZero() {
+			return p
+		}
+	}
+	return decimal.NewFromInt(0)
 }
 
 // SubAmount 通用资产增减扣款锁保护入口 ("加减款/人工上下分")
 func (s *sAsset) SubAmount(ctx context.Context, in *v1.SubAmountReq, callbacks ...func(ctx context.Context, tx gdb.TX) error) (*v1.SubAmountRes, error) {
-	if in.Amount == 0 && in.AmountStr == "" {
-		return nil, gerror.NewCode(codes.ClientError, "变动金额不能为0")
-	}
-
-	// 1. 获取 Redis 分布式排他锁 (锁住用户+币种维度，防御高频发重放防止表层穿透导致幻读)
-	lockKey := consts.RedisAssetLockPrefix + gconv.String(in.UserId) + ":" + in.Symbol
-	mutex := s.rs.NewMutex(lockKey, redsync.WithExpiry(time.Duration(consts.LockWatchDogTimeout)*time.Millisecond))
-
-	if err := mutex.Lock(); err != nil {
-		return nil, gerror.NewCode(codes.Failed, "获取资金安全处理锁失败，系统繁忙，请重试")
-	}
-	defer mutex.Unlock()
-
 	var recordId int64
 	var finalAmount float64
 
-	// 2. 数据库事务开启 (保证资产更新与流水插入同时成功或失败)
+	symbol := strings.ToLower(in.Symbol)
+
+	// 2. 数据库事务开启 (PG Advisory Lock 必须在事务内执行以实现自动释放)
 	err := dao.AppAsset.Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+		var err error
+		// 1. 获取 PostgreSQL 事务级咨询锁 (锁住用户+币种维度)
+		// 生成 64位 Hash Key: hash(userId:symbol)
+		h := fnv.New64a()
+		h.Write([]byte(fmt.Sprintf("%d:%s", in.UserId, symbol)))
+		lockKey := int64(h.Sum64())
+
+		_, err = tx.Exec("SELECT pg_advisory_xact_lock(?)", lockKey)
+		if err != nil {
+			return gerror.NewCode(codes.Failed, "获取资金安全处理锁失败，系统异常")
+		}
+
 		var asset entity.AppAsset
-		g.Log().Debugf(ctx, "SubAmount Intercept: UserId=%d, Symbol=%s, Amount=%f", in.UserId, in.Symbol, in.Amount)
+		g.Log().Debugf(ctx, "SubAmount Intercept: UserId=%d, Symbol=%s, Amount=%f", in.UserId, symbol, in.Amount)
 
 		// 3. PostgreSQL 行级悲观锁护航 (SELECT ... FOR UPDATE)
-		err := dao.AppAsset.Ctx(ctx).TX(tx).
+		err = dao.AppAsset.Ctx(ctx).TX(tx).
 			Where(dao.AppAsset.Columns().UserId, in.UserId).
-			Where(dao.AppAsset.Columns().Symbol, in.Symbol).
+			Where(dao.AppAsset.Columns().Symbol, symbol).
 			LockUpdate().
 			Scan(&asset)
 
@@ -89,7 +88,7 @@ func (s *sAsset) SubAmount(ctx context.Context, in *v1.SubAmountReq, callbacks .
 			// 新建初始资金为 0 的空资产账户
 			newAsset := g.Map{
 				dao.AppAsset.Columns().UserId:               in.UserId,
-				dao.AppAsset.Columns().Symbol:               in.Symbol,
+				dao.AppAsset.Columns().Symbol:               symbol,
 				dao.AppAsset.Columns().Type:                 "1", // 默认资金大类
 				dao.AppAsset.Columns().AvailableAmount:      0,
 				dao.AppAsset.Columns().Amout:                0,
@@ -104,6 +103,7 @@ func (s *sAsset) SubAmount(ctx context.Context, in *v1.SubAmountReq, callbacks .
 			asset.Id = int(newId)
 			asset.AvailableAmount = 0
 			asset.Amout = 0
+			asset.Symbol = symbol
 		}
 
 		// 4. 计算余额，全程使用 Decimal 防止产生弱浮点计算溢出（例如 1.000000001 的鬼影子）
@@ -148,16 +148,24 @@ func (s *sAsset) SubAmount(ctx context.Context, in *v1.SubAmountReq, callbacks .
 			return errors.New("并发余额不足扣款失败，数据可能已过期")
 		}
 
-		// 6. 严谨落地资金账单 (WalletRecord) 记录前值后值
+		// 6. 严谨落地资金账目 (WalletRecord) 记录前值后值
+		var uAmount float64
+		if in.UAmount != 0 {
+			uAmount = in.UAmount
+		} else {
+			rate := s.GetExchangeRate(ctx, in.Symbol)
+			uAmount, _ = changeAmount.Abs().Mul(rate).Float64()
+		}
+
 		record := g.Map{
 			dao.AppWalletRecord.Columns().UserId:         in.UserId,
 			dao.AppWalletRecord.Columns().BeforeAmount:   asset.AvailableAmount,
-			dao.AppWalletRecord.Columns().Amount:         changeAmount.String(), // 正数充，负数扣
+			dao.AppWalletRecord.Columns().Amount:         changeAmount.Abs().String(), // 记录绝对值，对齐 Java 版
 			dao.AppWalletRecord.Columns().AfterAmount:    finalAmount,
-			dao.AppWalletRecord.Columns().Symbol:         in.Symbol,
+			dao.AppWalletRecord.Columns().Symbol:         symbol,
 			dao.AppWalletRecord.Columns().Type:           in.RecordType,
 			dao.AppWalletRecord.Columns().Remark:         in.Remark,
-			dao.AppWalletRecord.Columns().UAmount:        0,
+			dao.AppWalletRecord.Columns().UAmount:        uAmount, // 根据汇率折算的 U 金额
 			dao.AppWalletRecord.Columns().CreateBy:       "",
 			dao.AppWalletRecord.Columns().UpdateBy:       "",
 			dao.AppWalletRecord.Columns().SearchValue:    "",
@@ -201,33 +209,43 @@ func (s *sAsset) AddAmount(ctx context.Context, in *v1.SubAmountReq, callbacks .
 
 // FreezeAmount 冻结或解冻资金 (Amount 为正数表示冻结，为负数表示解冻)
 func (s *sAsset) FreezeAmount(ctx context.Context, in *v1.SubAmountReq) (*v1.SubAmountRes, error) {
-	if in.Amount == 0 {
-		return nil, gerror.NewCode(codes.ClientError, "冻结金额不能为0")
-	}
-
-	// 1. 获取 Redis 分布式排他锁 (锁住用户+币种维度)
-	lockKey := consts.RedisAssetLockPrefix + gconv.String(in.UserId) + ":" + in.Symbol
-	mutex := s.rs.NewMutex(lockKey, redsync.WithExpiry(time.Duration(consts.LockWatchDogTimeout)*time.Millisecond))
-
-	if err := mutex.Lock(); err != nil {
-		return nil, gerror.NewCode(codes.Failed, "获取资金安全处理锁失败，系统繁忙，请重试")
-	}
-	defer mutex.Unlock()
-
 	var recordId int64
 	var finalAvailable float64
 
+	symbol := strings.ToLower(in.Symbol)
+
 	// 2. 数据库事务开启
 	err := dao.AppAsset.Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+		var err error
+		// 1. 获取 PostgreSQL 事务级咨询锁
+		h := fnv.New64a()
+		h.Write([]byte(fmt.Sprintf("%d:%s", in.UserId, symbol)))
+		lockKey := int64(h.Sum64())
+
+		_, err = tx.Exec("SELECT pg_advisory_xact_lock(?)", lockKey)
+		if err != nil {
+			return gerror.NewCode(codes.Failed, "获取资金安全处理锁失败，系统异常")
+		}
+
 		var asset entity.AppAsset
-		err := dao.AppAsset.Ctx(ctx).TX(tx).
+		err = dao.AppAsset.Ctx(ctx).TX(tx).
 			Where(dao.AppAsset.Columns().UserId, in.UserId).
-			Where(dao.AppAsset.Columns().Symbol, in.Symbol).
+			Where(dao.AppAsset.Columns().Symbol, symbol).
+			Where(dao.AppAsset.Columns().Type, 1). // 必须是平台普通资产类型
 			LockUpdate().
 			Scan(&asset)
 
 		if err != nil {
-			return gerror.NewCode(codes.UserNotFound, "找不到对应资金账户")
+			errStr := err.Error()
+			if errStr != "sql: no rows in result set" && errStr != "not found" {
+				g.Log().Errorf(ctx, "[资产系统] 查询账户异常 UID:%v Symbol:%v Err:%v", in.UserId, symbol, err)
+				return err
+			}
+		}
+
+		if asset.Id == 0 {
+			// 如果账户不存在，说明从未有过该币种，余额自然为 0，冻结操作（非加款）必定失败
+			return gerror.NewCode(codes.BalanceNotEnough, "可用余额不足，请先充值")
 		}
 
 		// 3. 精度运算
@@ -265,16 +283,24 @@ func (s *sAsset) FreezeAmount(ctx context.Context, in *v1.SubAmountReq) (*v1.Sub
 		}
 
 		// 5. 落地资金流水 (WalletRecord) 记录账变
+		var uAmount float64
+		if in.UAmount != 0 {
+			uAmount = in.UAmount
+		} else {
+			rate := s.GetExchangeRate(ctx, in.Symbol)
+			uAmount, _ = changeAmount.Abs().Mul(rate).Float64()
+		}
+
 		record := g.Map{
 			dao.AppWalletRecord.Columns().UserId:       in.UserId,
 			dao.AppWalletRecord.Columns().BeforeAmount: asset.AvailableAmount,
-			// 这里金额填负数是因为对 Available 来说是流出，但实质是冻结
-			dao.AppWalletRecord.Columns().Amount:         -in.Amount,
+			// 这里记录绝对值，对齐 Java 版
+			dao.AppWalletRecord.Columns().Amount:         changeAmount.Abs().InexactFloat64(),
 			dao.AppWalletRecord.Columns().AfterAmount:    finalAvailable,
-			dao.AppWalletRecord.Columns().Symbol:         in.Symbol,
+			dao.AppWalletRecord.Columns().Symbol:         symbol,
 			dao.AppWalletRecord.Columns().Type:           in.RecordType, // 例如 21 代表提现冻结
 			dao.AppWalletRecord.Columns().Remark:         in.Remark,
-			dao.AppWalletRecord.Columns().UAmount:        0,
+			dao.AppWalletRecord.Columns().UAmount:        uAmount,
 			dao.AppWalletRecord.Columns().CreateBy:       "",
 			dao.AppWalletRecord.Columns().UpdateBy:       "",
 			dao.AppWalletRecord.Columns().SearchValue:    "",
@@ -299,4 +325,12 @@ func (s *sAsset) FreezeAmount(ctx context.Context, in *v1.SubAmountReq) (*v1.Sub
 		RecordId:      recordId,
 		CurrentAmount: finalAvailable,
 	}, nil
+}
+
+// UnfreezeAmount 解提资金 (本质上是 FreezeAmount 提交负数)
+func (s *sAsset) UnfreezeAmount(ctx context.Context, in *v1.SubAmountReq) (*v1.SubAmountRes, error) {
+	if in.Amount > 0 {
+		in.Amount = -in.Amount
+	}
+	return s.FreezeAmount(ctx, in)
 }

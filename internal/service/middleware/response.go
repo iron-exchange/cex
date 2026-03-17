@@ -73,7 +73,7 @@ func HandlerResponse(r *ghttp.Request) {
 	if outputCode == 0 {
 		outputCode = 200
 		if msg == "" {
-			msg = "success"
+			msg = "操作成功"
 		}
 	} else if outputCode == -1 {
 		// 内部异常 默认 500

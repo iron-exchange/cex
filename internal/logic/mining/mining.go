@@ -126,7 +126,7 @@ func (s *sMining) ShowMining(ctx context.Context, userId uint64) (res *v1.Mining
 			Amount:     o.Amount,
 			Days:       o.Days,
 			Status:     o.Status,
-			CreateTime: o.CreateTime.Format("2006-01-02 15:04:05"),
+			CreateTime: o.CreateTime.Format("Y-m-d H:i:s"),
 		})
 	}
 	return
@@ -241,7 +241,7 @@ func (s *sMining) GetOrderList(ctx context.Context, userId uint64, req *v1.MingO
 			Amount:     o.Amount,
 			Days:       o.Days,
 			Status:     o.Status,
-			CreateTime: o.CreateTime.Format("2006-01-02 15:04:05"),
+			CreateTime: o.CreateTime.Format("Y-m-d H:i:s"),
 		})
 	}
 	return
@@ -261,7 +261,7 @@ func (s *sMining) GetOrderDetail(ctx context.Context, userId uint64, req *v1.Min
 			Amount:     o.Amount,
 			Days:       o.Days,
 			Status:     o.Status,
-			CreateTime: o.CreateTime.Format("2006-01-02 15:04:05"),
+			CreateTime: o.CreateTime.Format("Y-m-d H:i:s"),
 		},
 	}
 	return res, nil

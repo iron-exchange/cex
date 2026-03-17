@@ -4,11 +4,13 @@ import (
 	"context"
 	"strings"
 
+	v1admin "GoCEX/api/admin/v1"
 	v1 "GoCEX/app/api"
 	"GoCEX/internal/dao"
 	"GoCEX/internal/model/entity"
 
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/shopspring/decimal"
 )
 
@@ -107,4 +109,106 @@ func (s *sAsset) GetWalletRecords(ctx context.Context, in *v1.WalletRecordReq, u
 	}
 
 	return res, nil
+}
+func (s *sAsset) GetAppAssetList(ctx context.Context, req *v1admin.GetAppAssetListReq) (*v1admin.GetAppAssetListRes, error) {
+	m := dao.AppAsset.Ctx(ctx).As("asset").LeftJoin("t_app_user u", "asset.user_id = u.user_id")
+
+	// 1. 权限过滤 (仅超级管理员可看全部)
+	adminId := gconv.Int64(ctx.Value("adminId"))
+	if adminId != 1 && adminId > 0 {
+		m = m.WhereLike("u.admin_parent_ids", "%"+gconv.String(adminId)+"%")
+	}
+
+	// 2. 基础过滤
+	if req.UserId > 0 {
+		m = m.Where("asset.user_id", req.UserId)
+	}
+	if req.Adress != "" {
+		m = m.WhereLike("asset.adress", "%"+req.Adress+"%")
+	}
+	if req.Symbol != "" {
+		m = m.Where("asset.symbol", strings.ToLower(req.Symbol))
+	}
+	if req.Type > 0 {
+		m = m.Where("asset.type", req.Type)
+	}
+	if req.SearchValue != "" {
+		m = m.WhereLike("asset.adress", "%"+req.SearchValue+"%")
+	}
+
+	// 3. 金额区间过滤 (Params)
+	if req.Params.AmountMin != "" {
+		m = m.WhereGTE("asset.amout", req.Params.AmountMin)
+	}
+	if req.Params.AmountMax != "" {
+		m = m.WhereLTE("asset.amout", req.Params.AmountMax)
+	}
+	if req.Params.AvailableAmountMin != "" {
+		m = m.WhereGTE("asset.available_amount", req.Params.AvailableAmountMin)
+	}
+	if req.Params.AvailableAmountMax != "" {
+		m = m.WhereLTE("asset.available_amount", req.Params.AvailableAmountMax)
+	}
+	if req.Params.OccupiedAmountMin != "" {
+		m = m.WhereGTE("asset.occupied_amount", req.Params.OccupiedAmountMin)
+	}
+	if req.Params.OccupiedAmountMax != "" {
+		m = m.WhereLTE("asset.occupied_amount", req.Params.OccupiedAmountMax)
+	}
+
+	// 4. 时间过滤
+	if req.Params.BeginTime != "" {
+		m = m.WhereGTE("asset.create_time", req.Params.BeginTime)
+	}
+	if req.Params.EndTime != "" {
+		m = m.WhereLTE("asset.create_time", req.Params.EndTime)
+	}
+
+	total, err := m.Count()
+	if err != nil || total == 0 {
+		return &v1admin.GetAppAssetListRes{Total: 0, Rows: []v1admin.AppAssetInfo{}}, nil
+	}
+
+	// 5. 聚合查询
+	var list []struct {
+		entity.AppAsset
+		AdminParentIds string `orm:"admin_parent_ids"`
+	}
+
+	err = m.Page(req.PageNum, req.PageSize).Fields("asset.*, u.admin_parent_ids").OrderDesc("asset.create_time").Scan(&list)
+	if err != nil {
+		return nil, err
+	}
+
+	resRows := make([]v1admin.AppAssetInfo, 0, len(list))
+	for _, a := range list {
+		row := v1admin.AppAssetInfo{
+			CreateBy:             a.CreateBy,
+			CreateTime:           a.CreateTime.Format("2006-01-02 15:04:05"),
+			UpdateBy:             a.UpdateBy,
+			UpdateTime:           a.UpdateTime.Format("2006-01-02 15:04:05"),
+			Remark:               a.Remark,
+			UserId:               a.UserId,
+			Adress:               &a.Adress,
+			Symbol:               a.Symbol,
+			Amout:                a.Amout,
+			OccupiedAmount:       a.OccupiedAmount,
+			AvailableAmount:      a.AvailableAmount,
+			AvailableAmountDaily: a.AvailableAmountDaily,
+			CodingVolumeDaily:    a.CodingVolumeDaily,
+			Type:                 gconv.Int(a.Type),
+			ExchageAmount:        nil,
+			AdminParentIds:       a.AdminParentIds,
+			Loge:                 nil,
+		}
+		if a.Adress == "" {
+			row.Adress = nil
+		}
+		resRows = append(resRows, row)
+	}
+
+	return &v1admin.GetAppAssetListRes{
+		Total: int(total),
+		Rows:  resRows,
+	}, nil
 }

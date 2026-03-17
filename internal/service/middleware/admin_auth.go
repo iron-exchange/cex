@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"strings"
 
 	"GoCEX/internal/codes"
@@ -17,7 +18,7 @@ const adminJwtSecret = "your-256-bit-secret"
 func CtxAdminAuth(r *ghttp.Request) {
 	// 放行登录白名单接口
 	path := r.URL.Path
-	if path == "/api/admin/v1/login" || path == "/login" || path == "/api/admin/v1/captchaImage" {
+	if path == "/api/admin/v1/login" || path == "/login" || path == "/api/admin/v1/captchaImage" || path == "/api/admin/v1/common/getAllSetting" {
 		r.Middleware.Next()
 		return
 	}
@@ -60,8 +61,23 @@ func CtxAdminAuth(r *ghttp.Request) {
 
 	// 将 claims 注入 ctx，供后续业务层取用
 	if claims, ok := token.Claims.(jwt.MapClaims); ok {
-		r.SetCtxVar("adminId", claims["userId"])
-		r.SetCtxVar("adminAccount", claims["account"])
+		uid := claims["userId"]
+		account := claims["account"]
+		g.Log().Debugf(r.Context(), "[CtxAdminAuth] JWT 解析成功: userId=%v(%T), account=%v", uid, uid, account)
+
+		// GF 原生的 SetCtxVar 是存在 Request 里的，逻辑层用 ctx.Value 拿不到
+		// 这里必须显式注入到 Standard Context
+		newCtx := context.WithValue(r.Context(), "adminId", uid)
+		newCtx = context.WithValue(newCtx, "adminAccount", account)
+		r.SetCtx(newCtx)
+
+		// 为了兼容之前的代码，SetCtxVar 也留着
+		r.SetCtxVar("adminId", uid)
+		r.SetCtxVar("adminAccount", account)
+
+		g.Log().Debugf(r.Context(), "[CtxAdminAuth] Context 已注入: adminId=%v", r.Context().Value("adminId"))
+	} else {
+		g.Log().Error(r.Context(), "[CtxAdminAuth] JWT Claims 类型断言失败")
 	}
 
 	r.Middleware.Next()
